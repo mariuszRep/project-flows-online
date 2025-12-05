@@ -21,6 +21,146 @@ function getStripeInstance(): Stripe {
   })
 }
 
+/**
+ * Handle different webhook event types
+ */
+async function handleWebhookEvent(event: Stripe.Event) {
+  switch (event.type) {
+    // Checkout Session Events
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session
+      console.log('💳 Checkout session completed:', {
+        sessionId: session.id,
+        mode: session.mode,
+        customer: session.customer,
+        subscription: session.subscription,
+        metadata: session.metadata,
+      })
+      break
+    }
+
+    case 'checkout.session.expired': {
+      const session = event.data.object as Stripe.Checkout.Session
+      console.log('⏰ Checkout session expired:', {
+        sessionId: session.id,
+        mode: session.mode,
+      })
+      break
+    }
+
+    // Subscription Events
+    case 'customer.subscription.created': {
+      const subscription = event.data.object as Stripe.Subscription
+      console.log('🎉 Subscription created:', {
+        subscriptionId: subscription.id,
+        customer: subscription.customer,
+        status: subscription.status,
+        metadata: subscription.metadata,
+        items: subscription.items.data.map((item) => ({
+          priceId: item.price.id,
+          quantity: item.quantity,
+        })),
+      })
+      break
+    }
+
+    case 'customer.subscription.updated': {
+      const subscription = event.data.object as Stripe.Subscription
+      console.log('🔄 Subscription updated:', {
+        subscriptionId: subscription.id,
+        customer: subscription.customer,
+        status: subscription.status,
+        metadata: subscription.metadata,
+      })
+      break
+    }
+
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object as Stripe.Subscription
+      console.log('❌ Subscription deleted:', {
+        subscriptionId: subscription.id,
+        customer: subscription.customer,
+        status: subscription.status,
+        metadata: subscription.metadata,
+      })
+      break
+    }
+
+    // Invoice Events
+    case 'invoice.paid': {
+      const invoice = event.data.object as Stripe.Invoice
+      console.log('✅ Invoice paid:', {
+        invoiceId: invoice.id,
+        customer: invoice.customer,
+        subscription: invoice.subscription,
+        amount: invoice.amount_paid,
+        currency: invoice.currency,
+      })
+      break
+    }
+
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice
+      console.log('⚠️ Invoice payment failed:', {
+        invoiceId: invoice.id,
+        customer: invoice.customer,
+        subscription: invoice.subscription,
+        amount: invoice.amount_due,
+        currency: invoice.currency,
+      })
+      break
+    }
+
+    // Payment Intent Events (for one-time payments)
+    case 'payment_intent.succeeded': {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent
+      console.log('💰 Payment succeeded:', {
+        paymentIntentId: paymentIntent.id,
+        customer: paymentIntent.customer,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        metadata: paymentIntent.metadata,
+      })
+      break
+    }
+
+    case 'payment_intent.payment_failed': {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent
+      console.log('❌ Payment failed:', {
+        paymentIntentId: paymentIntent.id,
+        customer: paymentIntent.customer,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+      })
+      break
+    }
+
+    // Customer Events
+    case 'customer.created': {
+      const customer = event.data.object as Stripe.Customer
+      console.log('👤 Customer created:', {
+        customerId: customer.id,
+        email: customer.email,
+        metadata: customer.metadata,
+      })
+      break
+    }
+
+    case 'customer.updated': {
+      const customer = event.data.object as Stripe.Customer
+      console.log('👤 Customer updated:', {
+        customerId: customer.id,
+        email: customer.email,
+        metadata: customer.metadata,
+      })
+      break
+    }
+
+    default:
+      console.log('📫 Unhandled event type:', event.type)
+  }
+}
+
 export async function POST(request: NextRequest) {
   const stripe = getStripeInstance()
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
@@ -61,6 +201,9 @@ export async function POST(request: NextRequest) {
       type: event.type,
       created: new Date(event.created * 1000).toISOString(),
     })
+
+    // Handle different event types
+    await handleWebhookEvent(event)
 
     // Return success response
     return NextResponse.json({ received: true }, { status: 200 })
