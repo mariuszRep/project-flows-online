@@ -5,6 +5,11 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Skip middleware for webhook endpoints (they use signature verification instead)
+  if (pathname.startsWith('/api/webhooks/')) {
+    return NextResponse.next()
+  }
+
   // Apply rate limiting to auth endpoints
   if (
     pathname.startsWith('/login') ||
