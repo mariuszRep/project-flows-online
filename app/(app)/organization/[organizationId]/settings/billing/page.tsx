@@ -134,7 +134,7 @@ export default async function BillingPage(props: BillingPageProps) {
                   tools.
                 </p>
                 <Button asChild>
-                  <Link href="/pricing">View Pricing Plans</Link>
+                  <Link href="/plans">View Plans</Link>
                 </Button>
               </div>
             </CardContent>

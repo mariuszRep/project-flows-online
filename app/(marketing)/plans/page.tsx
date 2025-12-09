@@ -2,7 +2,7 @@ import { fetchStripePricing } from '@/config/stripe'
 import { PricingClient } from './pricing-client'
 
 export const metadata = {
-  title: 'Pricing - Choose Your Plan',
+  title: 'Plans - Choose Your Plan',
   description: 'Choose the perfect plan for your team. Start with a free trial on any plan.',
 }
 
@@ -12,11 +12,11 @@ export default async function PricingPage() {
   const annualPlans = await fetchStripePricing('year')
 
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div id="plans" className="container mx-auto px-4 py-16">
       {/* Header */}
       <div className="text-center space-y-4 mb-8">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-          Simple, transparent pricing
+          Simple, transparent plans
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
           Choose the perfect plan for your team. Start with a 14-day free trial on any plan.
