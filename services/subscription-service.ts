@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 import { CheckoutSessionResult } from './payment-service'
-import { createServiceRoleClient } from '@/lib/supabase/server'
+import { createServiceRoleClient, createClient } from '@/lib/supabase/server'
 
 /**
  * Subscription Service - Business logic layer for Stripe subscriptions
@@ -169,13 +169,14 @@ export interface SubscriptionData {
 
 /**
  * Get subscription by organization ID
- * Uses service role client to bypass RLS for middleware access control
+ * Now uses authenticated client to respect RLS policies
+ * Subscription access is controlled at the database level via RLS
  */
 export async function getSubscriptionByOrgId(
   orgId: string
 ): Promise<SubscriptionData | null> {
   try {
-    const supabase = createServiceRoleClient()
+    const supabase = await createClient()
 
     const { data: subscription, error } = await supabase
       .from('subscriptions')
@@ -195,6 +196,10 @@ export async function getSubscriptionByOrgId(
 }
 
 /**
+ * @deprecated This function is deprecated and will be removed in a future version.
+ * Subscription checks are now enforced at the database level via RLS policies.
+ * The org_has_active_subscription database function handles grace period logic.
+ *
  * Check if organization has active subscription
  * Includes grace period logic for past_due subscriptions
  * @param orgId - Organization ID

@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { hasActiveSubscription } from '@/services/subscription-service'
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -81,37 +80,9 @@ async function handleAuthErrorsAndUpdateSession(request: NextRequest) {
     }
   }
 
-  // Update session first
+  // Update session and return response
+  // Subscription checks are now enforced at the database level via RLS policies
   const response = await updateSession(request)
-
-  // Check subscription for organization routes
-  const orgRouteMatch = request.nextUrl.pathname.match(/^\/organization\/([^/]+)/)
-  if (orgRouteMatch) {
-    const organizationId = orgRouteMatch[1]
-
-    // Skip subscription check for billing and subscription pages
-    const exemptPaths = [
-      `/organization/${organizationId}/settings/billing`,
-      `/organization/${organizationId}/subscription`,
-    ]
-
-    const isExemptPath = exemptPaths.some(path =>
-      request.nextUrl.pathname.startsWith(path)
-    )
-
-    if (!isExemptPath) {
-      // Check if organization has active subscription
-      const hasSubscription = await hasActiveSubscription(organizationId)
-
-      if (!hasSubscription) {
-        const url = request.nextUrl.clone()
-        url.pathname = `/organization/${organizationId}/settings/billing`
-        url.searchParams.set('error', 'subscription_required')
-        return NextResponse.redirect(url)
-      }
-    }
-  }
-
   return response
 }
 
