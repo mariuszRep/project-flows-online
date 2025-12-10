@@ -26,14 +26,19 @@ function getStripeInstance(): Stripe {
 
 export interface SubscriptionCheckoutParams {
   priceId: string
-  orgId: string
-  orgName: string
+  orgId?: string | null
+  orgName?: string | null
   userEmail: string
+  userId?: string
+  planId?: string
+  isOnboarding?: boolean
 }
 
 /**
- * Create a Stripe Checkout Session for subscription with organization linking
- * Creates or retrieves Stripe Customer with org_id in metadata
+ * Create a Stripe Checkout Session for subscription with optional organization linking
+ * Creates or retrieves Stripe Customer with metadata
+ * When orgId is provided: links to existing organization
+ * When orgId is null: stores user_id and plan_id for post-payment org association
  */
 export async function createSubscriptionCheckoutSession(
   params: SubscriptionCheckoutParams
@@ -42,7 +47,7 @@ export async function createSubscriptionCheckoutSession(
     const stripe = getStripeInstance()
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
-    // Find or create Stripe Customer with org_id in metadata
+    // Find or create Stripe Customer with appropriate metadata
     let customerId: string
 
     // Search for existing customer by email
@@ -51,30 +56,63 @@ export async function createSubscriptionCheckoutSession(
       limit: 1,
     })
 
+    const customerMetadata: Record<string, string> = {}
+
+    if (params.orgId) {
+      // Existing organization flow
+      customerMetadata.org_id = params.orgId
+      if (params.orgName) {
+        customerMetadata.org_name = params.orgName
+      }
+    } else {
+      // Pre-organization flow - store user info for later association
+      if (params.userId) {
+        customerMetadata.user_id = params.userId
+      }
+      if (params.planId) {
+        customerMetadata.plan_id = params.planId
+      }
+    }
+
     if (existingCustomers.data.length > 0) {
       customerId = existingCustomers.data[0].id
 
-      // Update customer metadata to include org_id if not present
-      const customer = existingCustomers.data[0]
-      if (!customer.metadata.org_id) {
-        await stripe.customers.update(customerId, {
-          metadata: {
-            org_id: params.orgId,
-            org_name: params.orgName,
-          },
-        })
-      }
+      // Update customer metadata
+      await stripe.customers.update(customerId, {
+        metadata: customerMetadata,
+      })
     } else {
-      // Create new customer with org metadata
+      // Create new customer with metadata
       const customer = await stripe.customers.create({
         email: params.userEmail,
-        metadata: {
-          org_id: params.orgId,
-          org_name: params.orgName,
-        },
+        metadata: customerMetadata,
       })
       customerId = customer.id
     }
+
+    // Prepare subscription metadata
+    const subscriptionMetadata: Record<string, string> = {}
+    if (params.orgId) {
+      subscriptionMetadata.org_id = params.orgId
+      if (params.orgName) {
+        subscriptionMetadata.org_name = params.orgName
+      }
+    } else {
+      if (params.userId) {
+        subscriptionMetadata.user_id = params.userId
+      }
+      if (params.planId) {
+        subscriptionMetadata.plan_id = params.planId
+      }
+    }
+
+    // Determine success URL based on context
+    // If isOnboarding flag is set, always redirect back to onboarding flow
+    const successUrl = params.isOnboarding
+      ? `${baseUrl}/onboarding?payment_success=true&session_id={CHECKOUT_SESSION_ID}`
+      : params.orgId
+      ? `${baseUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`
+      : `${baseUrl}/onboarding?payment_success=true&session_id={CHECKOUT_SESSION_ID}`
 
     // Create Checkout Session in subscription mode
     const session = await stripe.checkout.sessions.create({
@@ -87,13 +125,10 @@ export async function createSubscriptionCheckoutSession(
         },
       ],
       subscription_data: {
-        metadata: {
-          org_id: params.orgId,
-          org_name: params.orgName,
-        },
+        metadata: subscriptionMetadata,
       },
-      success_url: `${baseUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/subscription/test`,
+      success_url: successUrl,
+      cancel_url: params.orgId ? `${baseUrl}/subscription/test` : `${baseUrl}/plans`,
     })
 
     if (!session.url) {

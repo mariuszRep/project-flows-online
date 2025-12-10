@@ -7,6 +7,10 @@ import {
   type BillingInterval,
 } from '@/features/subscriptions/components/billing-interval-toggle'
 import { type PricingPlan } from '@/config/stripe'
+import { useOnboardingStore } from '@/lib/stores/onboarding-store'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { OnboardingFlow } from '@/features/auth/components/onboarding-flow'
+import { useAuth } from '@/hooks/use-auth'
 
 interface PricingClientProps {
   monthlyPlans: PricingPlan[]
@@ -19,6 +23,8 @@ interface PricingClientProps {
  */
 export function PricingClient({ monthlyPlans, annualPlans }: PricingClientProps) {
   const [interval, setInterval] = useState<BillingInterval>('month')
+  const { isWizardModalOpen, closeWizardModal } = useOnboardingStore()
+  const { user } = useAuth()
 
   const currentPlans = interval === 'month' ? monthlyPlans : annualPlans
 
@@ -51,6 +57,13 @@ export function PricingClient({ monthlyPlans, annualPlans }: PricingClientProps)
           </p>
         </div>
       )}
+
+      {/* Onboarding Wizard Modal */}
+      <Dialog open={isWizardModalOpen} onOpenChange={closeWizardModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <OnboardingFlow userEmail={user?.email || ''} invitationDetails={null} />
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

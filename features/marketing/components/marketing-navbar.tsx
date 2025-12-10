@@ -198,7 +198,7 @@ export function MarketingNavbar() {
                 <Link href="/login">Log in</Link>
               </Button>
               <Button asChild>
-                <Link href="/signup">Sign up</Link>
+                <a href="#plans">Get Started</a>
               </Button>
             </>
           )}

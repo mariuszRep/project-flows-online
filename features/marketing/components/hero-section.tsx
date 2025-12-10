@@ -79,7 +79,7 @@ export function HeroSection() {
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Button asChild size="lg">
-            <Link href="/signup">Get Started</Link>
+            <a href="#plans">Get Started</a>
           </Button>
           <Button asChild variant="outline" size="lg">
             <a href="#plans">View Plans</a>

@@ -58,6 +58,9 @@ export async function signUpWithPassword(
   const { error } = await supabase.auth.signUp({
     email: validation.data.email,
     password: validation.data.password,
+    options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding?verified=true`,
+    },
   })
 
   if (error) {

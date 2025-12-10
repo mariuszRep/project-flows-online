@@ -89,6 +89,63 @@ export type Database = {
           },
         ]
       }
+      onboarding_progress: {
+        Row: {
+          created_at: string
+          email_verified: boolean
+          id: string
+          organization_id: string | null
+          payment_completed: boolean
+          selected_plan_id: string | null
+          selected_plan_interval: string | null
+          selected_plan_name: string | null
+          updated_at: string
+          user_id: string
+          wizard_step: number
+        }
+        Insert: {
+          created_at?: string
+          email_verified?: boolean
+          id?: string
+          organization_id?: string | null
+          payment_completed?: boolean
+          selected_plan_id?: string | null
+          selected_plan_interval?: string | null
+          selected_plan_name?: string | null
+          updated_at?: string
+          user_id: string
+          wizard_step?: number
+        }
+        Update: {
+          created_at?: string
+          email_verified?: boolean
+          id?: string
+          organization_id?: string | null
+          payment_completed?: boolean
+          selected_plan_id?: string | null
+          selected_plan_interval?: string | null
+          selected_plan_name?: string | null
+          updated_at?: string
+          user_id?: string
+          wizard_step?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_progress_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -631,6 +688,7 @@ export type Workspace = Database["public"]["Tables"]["workspaces"]["Row"]
 export type Permission = Database["public"]["Tables"]["permissions"]["Row"]
 export type Role = Database["public"]["Tables"]["roles"]["Row"]
 export type Invitation = Database["public"]["Tables"]["invitations"]["Row"]
+export type OnboardingProgress = Database["public"]["Tables"]["onboarding_progress"]["Row"]
 export type Subscription = Database["public"]["Tables"]["subscriptions"]["Row"]
 
 export type PrincipalType = 'user' | 'group'

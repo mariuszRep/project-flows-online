@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +15,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { type PricingPlan, formatPrice } from '@/config/stripe'
 import { createSubscriptionCheckoutWithPrice } from '../subscription-actions'
+import { useAuth } from '@/hooks/use-auth'
+import { useOnboardingStore } from '@/lib/stores/onboarding-store'
+import { createClient } from '@/lib/supabase/client'
 
 interface PricingCardProps {
   plan: PricingPlan
@@ -30,6 +34,9 @@ export function PricingCard({ plan, currentPlanId, className }: PricingCardProps
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isCurrentPlan = currentPlanId === plan.id
+  const { user } = useAuth()
+  const { setSelectedPlan, goToStep, reset } = useOnboardingStore()
+  const router = useRouter()
 
   const handleSubscribe = async () => {
     if (isCurrentPlan) return
@@ -38,6 +45,35 @@ export function PricingCard({ plan, currentPlanId, className }: PricingCardProps
     setError(null)
 
     try {
+      // If user is not authenticated, redirect to onboarding with plan pre-selected
+      if (!user) {
+        reset()
+        setSelectedPlan(plan.id, plan.name, plan.interval, plan.priceId)
+        goToStep(0)
+        router.push('/onboarding')
+        setIsLoading(false)
+        return
+      }
+
+      // Check if authenticated user has any organizations
+      const supabase = createClient()
+      const { data: permissions } = await supabase
+        .from('users_permissions')
+        .select('object_id')
+        .eq('object_type', 'organization')
+        .limit(1)
+
+      // If no organizations, redirect to onboarding with plan pre-selected
+      if (!permissions || permissions.length === 0) {
+        reset()
+        setSelectedPlan(plan.id, plan.name, plan.interval, plan.priceId)
+        goToStep(0)
+        router.push('/onboarding')
+        setIsLoading(false)
+        return
+      }
+
+      // User has organizations, proceed with normal checkout
       const result = await createSubscriptionCheckoutWithPrice(plan.priceId)
 
       if (result?.error) {

@@ -1,16 +1,26 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { OnboardingFlow } from '@/features/auth/components/onboarding-flow'
+import { OnboardingFlowWrapper } from '@/features/auth/components/onboarding-flow-wrapper'
 
-export default async function OnboardingPage() {
+interface OnboardingPageProps {
+  searchParams: Promise<{ verified?: string; payment_success?: string }>
+}
+
+export default async function OnboardingPage({ searchParams }: OnboardingPageProps) {
   const supabase = await createClient()
+  const params = await searchParams
 
   // Check authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  if (authError || !user) {
-    redirect('/login')
+  if (authError) {
+    // If there's an actual error (not just no user), we might want to log it or handle it
+    console.error('Auth check error:', authError)
   }
+
+  // NOTE: We allow unauthenticated users here for the new flow (Step 1-3).
+  // The OnboardingFlow component handles the account creation step.
+
 
   // Trust middleware - if we're on this page, user has no organizations
   // Middleware already checked and redirected users without orgs here
@@ -77,9 +87,11 @@ export default async function OnboardingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <OnboardingFlow
-        userEmail={user.email || ''}
+      <OnboardingFlowWrapper
+        userEmail={user?.email || ''}
         invitationDetails={invitationDetails}
+        verified={params.verified === 'true'}
+        paymentSuccess={params.payment_success === 'true'}
       />
     </div>
   )

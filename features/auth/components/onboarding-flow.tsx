@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useOnboardingStore } from '@/lib/stores/onboarding-store'
 import { acceptInvitation } from '@/features/invitations/invitation-actions'
@@ -8,6 +8,7 @@ import {
   createOrganizationWithPermissions,
   createWorkspaceWithPermissions,
 } from '@/features/onboarding/onboarding-actions'
+import { signUp } from '@/features/auth/auth-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,7 +25,11 @@ import {
   Sparkles,
   AlertCircle,
   UserCheck,
+  Mail,
+  CreditCard,
+  Loader2,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 interface InvitationDetails {
   invitationId: string
@@ -50,15 +55,65 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
     workspaceName,
     organizationId,
     currentStep,
+    selectedPlanId,
+    selectedPlanName,
+    selectedPlanInterval,
+    selectedPriceId,
+    emailVerified,
     setOrganizationName,
     setWorkspaceName,
     setOrganizationId,
+    setEmailVerified,
     nextStep,
     previousStep,
+    goToStep,
+    clearFromDatabase,
   } = useOnboardingStore()
 
   // Validation errors
-  const [errors, setErrors] = useState<{ organizationName?: string; workspaceName?: string }>({})
+  const [errors, setErrors] = useState<{ organizationName?: string; workspaceName?: string; email?: string; password?: string }>({})
+
+  // Account creation state
+  const [email, setEmail] = useState(userEmail || '')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+
+  // Email verification polling
+  useEffect(() => {
+    if (currentStep === 3 && !emailVerified) {
+      const interval = setInterval(async () => {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (user?.email_confirmed_at) {
+          setEmailVerified(true)
+          toast.success('Email verified!')
+          nextStep()
+          clearInterval(interval)
+        }
+      }, 3000)
+
+      return () => clearInterval(interval)
+    }
+  }, [currentStep, emailVerified, setEmailVerified, nextStep])
+
+  // Check for authentication when reaching Step 4 (Create Organization)
+  useEffect(() => {
+    if (currentStep === 4) {
+      const checkAuth = async () => {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          toast.error('Authentication required', {
+            description: 'Please log in to continue setting up your organization.'
+          })
+          router.push('/login')
+        }
+      }
+      checkAuth()
+    }
+  }, [currentStep, router])
 
   // Invitation acceptance flow
   const handleAcceptInvitation = async () => {
@@ -75,10 +130,8 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
 
         // Redirect based on workspace access
         if (invitationDetails.workspaceCount > 0) {
-          // Redirect to organization page - user will see their workspaces
           router.push(`/organization/${invitationDetails.organizationId}`)
         } else {
-          // No workspace access - redirect to settings
           router.push(`/organization/${invitationDetails.organizationId}/settings`)
         }
       } else {
@@ -96,7 +149,79 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
     }
   }
 
-  // Organic user flow - Step 1: Create Organization
+  // Account creation
+  const handleCreateAccount = async () => {
+    setErrors({})
+
+    if (!email.trim()) {
+      setErrors({ email: 'Email is required' })
+      return
+    }
+
+    if (!password || password.length < 6) {
+      setErrors({ password: 'Password must be at least 6 characters' })
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setErrors({ password: 'Passwords do not match' })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('password', password)
+
+      const result = await signUp(formData)
+
+      if (result.error) {
+        toast.error('Failed to create account', {
+          description: result.error,
+        })
+      } else {
+        toast.success('Account created!', {
+          description: 'Check your email to verify your account',
+        })
+        nextStep()
+      }
+    } catch (error) {
+      console.error('Error creating account:', error)
+      toast.error('Failed to create account', {
+        description: 'An unexpected error occurred',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Resend verification email
+  const handleResendVerification = async () => {
+    setIsLoading(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      })
+
+      if (error) {
+        toast.error('Failed to resend email', {
+          description: error.message,
+        })
+      } else {
+        toast.success('Verification email sent!')
+      }
+    } catch (error) {
+      console.error('Error resending verification:', error)
+      toast.error('Failed to resend email')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Organization creation
   const handleCreateOrganization = async () => {
     setErrors({})
 
@@ -135,7 +260,44 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
     }
   }
 
-  // Organic user flow - Step 2: Create Workspace
+  // Payment handling
+  const handlePayment = async () => {
+    if (!organizationId || !selectedPriceId) {
+      toast.error('Missing required information')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      // Call subscription service to create checkout session
+      const response = await fetch('/api/subscription/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: selectedPriceId,
+          orgId: organizationId,
+          isOnboarding: true,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.url) {
+        window.location.href = result.url
+      } else {
+        toast.error('Failed to create checkout session', {
+          description: result.error || 'An unexpected error occurred',
+        })
+      }
+    } catch (error) {
+      console.error('Error creating checkout:', error)
+      toast.error('Failed to create checkout session')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Workspace creation
   const handleCreateWorkspace = async () => {
     setErrors({})
 
@@ -150,7 +312,7 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
     }
 
     if (!organizationId) {
-      toast.error('No organization selected')
+      toast.error('Organization ID is missing')
       return
     }
 
@@ -163,7 +325,10 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
           description: `${result.data.name} is ready to use`,
         })
 
-        // Redirect to portal - it will automatically route to the workspace
+        // Clear onboarding progress from database after successful completion
+        await clearFromDatabase()
+
+        // Redirect to portal
         router.push('/portal')
       } else {
         toast.error('Failed to create workspace', {
@@ -234,74 +399,195 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
     )
   }
 
+  // Email verification polling
+  useEffect(() => {
+    if (currentStep === 1 && !emailVerified) {
+      const interval = setInterval(async () => {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (user?.email_confirmed_at) {
+          setEmailVerified(true)
+          toast.success('Email verified!')
+          nextStep()
+          clearInterval(interval)
+        }
+      }, 3000)
+
+      return () => clearInterval(interval)
+    }
+  }, [currentStep, emailVerified, setEmailVerified, nextStep])
+
+  // Check for authentication when reaching Step 2 (Create Organization)
+  useEffect(() => {
+    if (currentStep === 2) {
+      const checkAuth = async () => {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          toast.error('Authentication required', {
+            description: 'Please log in to continue setting up your organization.'
+          })
+          router.push('/login')
+        }
+      }
+      checkAuth()
+    }
+  }, [currentStep, router])
+
   // Render organic user wizard flow
   return (
     <div className="w-full max-w-2xl space-y-6">
       {/* Progress indicator */}
-      <div className="flex items-center justify-center gap-2">
-        {[0, 1, 2].map((step) => (
-          <div key={step} className="flex items-center">
+      <div className="flex items-center justify-center gap-2 overflow-x-auto">
+        {[0, 1, 2, 3, 4].map((step) => (
+          <div key={step} className="flex items-center shrink-0">
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${
-                step < currentStep
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : step === currentStep
+              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${step < currentStep
+                ? 'border-primary bg-primary text-primary-foreground'
+                : step === currentStep
                   ? 'border-primary bg-background text-primary'
                   : 'border-muted-foreground/30 bg-background text-muted-foreground'
-              }`}
+                }`}
             >
               {step < currentStep ? <Check className="h-5 w-5" /> : <span>{step + 1}</span>}
             </div>
-            {step < 2 && (
+            {step < 4 && (
               <div
-                className={`h-0.5 w-16 transition-colors ${
-                  step < currentStep ? 'bg-primary' : 'bg-muted-foreground/30'
-                }`}
+                className={`h-0.5 w-12 transition-colors ${step < currentStep ? 'bg-primary' : 'bg-muted-foreground/30'
+                  }`}
               />
             )}
           </div>
         ))}
       </div>
 
-      {/* Step 0: Welcome */}
+      {/* Step 0: Create Account */}
       {currentStep === 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-6 w-6 text-primary" />
-              <CardTitle>Welcome to Your SaaS Platform!</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 mb-2">
+                <UserCheck className="h-6 w-6 text-primary" />
+                <CardTitle>Create Your Account</CardTitle>
+              </div>
+              {selectedPlanName && (
+                <Badge variant="secondary" className="text-xs">
+                  {selectedPlanName} Plan
+                </Badge>
+              )}
             </div>
-            <CardDescription>Let's set up your workspace in just a few steps</CardDescription>
+            <CardDescription>Enter your details to get started</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-muted-foreground">
-              We'll help you create your organization and first workspace. This will only take a minute.
-            </p>
-            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-              <p className="text-sm font-medium">What you'll create:</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  <span>Your organization</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <FolderKanban className="h-4 w-4" />
-                  <span>Your first workspace</span>
-                </li>
-              </ul>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                className={errors.email ? 'border-red-500' : ''}
+              />
+              {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                minLength={6}
+                className={errors.password ? 'border-red-500' : ''}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={isLoading}
+                minLength={6}
+              />
+              {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
             </div>
           </CardContent>
-          <CardFooter>
-            <Button onClick={nextStep} className="w-full">
-              Get Started
-              <ArrowRight className="ml-2 h-4 w-4" />
+          <CardFooter className="flex flex-col gap-4">
+            <div className="flex justify-between w-full">
+              <Button variant="outline" onClick={() => router.push('/#plans')} disabled={isLoading}>
+                Change Plan
+              </Button>
+              <Button onClick={handleCreateAccount} disabled={isLoading}>
+                {isLoading ? 'Creating...' : 'Create Account'}
+                {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
+              </Button>
+            </div>
+            <div className="text-center text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="text-primary hover:underline font-medium"
+              >
+                Log in
+              </button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Step 1: Verify Email */}
+      {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2 mb-2">
+              <Mail className="h-6 w-6 text-primary" />
+              <CardTitle>Verify Your Email</CardTitle>
+            </div>
+            <CardDescription>Check your inbox to confirm your account</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Verification Required</AlertTitle>
+              <AlertDescription>
+                We've sent a verification email to <strong>{email}</strong>. Please check your inbox and click the
+                verification link.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+
+            <p className="text-sm text-center text-muted-foreground">
+              Waiting for email verification... Click the link in your email to continue.
+              <br />
+              <span className="text-xs">You may be asked to log in again.</span>
+            </p>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={handleResendVerification} disabled={isLoading}>
+              Resend Email
+            </Button>
+            <Button variant="ghost" onClick={() => goToStep(2)} disabled={isLoading}>
+              Skip for now
             </Button>
           </CardFooter>
         </Card>
       )}
 
-      {/* Step 1: Create Organization */}
-      {currentStep === 1 && (
+      {/* Step 2: Create Organization */}
+      {currentStep === 2 && (
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2 mb-2">
@@ -332,11 +618,7 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={previousStep}
-              disabled={isLoading}
-            >
+            <Button variant="outline" onClick={previousStep} disabled={isLoading}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
@@ -348,8 +630,50 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
         </Card>
       )}
 
-      {/* Step 2: Create Workspace */}
-      {currentStep === 2 && (
+      {/* Step 3: Payment */}
+      {currentStep === 3 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2 mb-2">
+              <CreditCard className="h-6 w-6 text-primary" />
+              <CardTitle>Complete Payment</CardTitle>
+            </div>
+            <CardDescription>Subscribe to your selected plan</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Plan</span>
+                <span className="font-medium">{selectedPlanName}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Billing</span>
+                <span className="font-medium capitalize">{selectedPlanInterval}</span>
+              </div>
+            </div>
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Secure Checkout</AlertTitle>
+              <AlertDescription>
+                You'll be redirected to Stripe to complete your payment securely.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={previousStep} disabled={isLoading}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <Button onClick={handlePayment} disabled={isLoading}>
+              {isLoading ? 'Processing...' : 'Proceed to Payment'}
+              {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Step 4: Create Workspace */}
+      {currentStep === 4 && (
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2 mb-2">
@@ -380,11 +704,7 @@ export function OnboardingFlow({ userEmail, invitationDetails }: OnboardingFlowP
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={previousStep}
-              disabled={isLoading}
-            >
+            <Button variant="outline" onClick={previousStep} disabled={isLoading}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>

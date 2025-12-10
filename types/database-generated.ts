@@ -89,6 +89,63 @@ export type Database = {
           },
         ]
       }
+      onboarding_progress: {
+        Row: {
+          created_at: string
+          email_verified: boolean
+          id: string
+          organization_id: string | null
+          payment_completed: boolean
+          selected_plan_id: string | null
+          selected_plan_interval: string | null
+          selected_plan_name: string | null
+          updated_at: string
+          user_id: string
+          wizard_step: number
+        }
+        Insert: {
+          created_at?: string
+          email_verified?: boolean
+          id?: string
+          organization_id?: string | null
+          payment_completed?: boolean
+          selected_plan_id?: string | null
+          selected_plan_interval?: string | null
+          selected_plan_name?: string | null
+          updated_at?: string
+          user_id: string
+          wizard_step?: number
+        }
+        Update: {
+          created_at?: string
+          email_verified?: boolean
+          id?: string
+          organization_id?: string | null
+          payment_completed?: boolean
+          selected_plan_id?: string | null
+          selected_plan_interval?: string | null
+          selected_plan_name?: string | null
+          updated_at?: string
+          user_id?: string
+          wizard_step?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_progress_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -474,6 +531,10 @@ export type Database = {
           table_name_param: string
           workspace_id_param?: string
         }
+        Returns: boolean
+      }
+      org_has_active_subscription: {
+        Args: { org_id_param: string }
         Returns: boolean
       }
       user_has_role_on_object: {
