@@ -30,6 +30,7 @@ export async function signIn(formData: FormData) {
   }
 
   revalidatePath('/', 'layout')
+  // Let portal page handle redirect logic based on user's org/workspace status
   redirect('/portal')
 }
 

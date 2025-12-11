@@ -1,9 +1,18 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { OnboardingFlowWrapper } from '@/features/auth/components/onboarding-flow-wrapper'
+import { OnboardingWizard } from '@/features/auth/components/onboarding-wizard'
+import { InvitationAcceptance } from '@/features/auth/components/invitation-acceptance'
 
 interface OnboardingPageProps {
-  searchParams: Promise<{ verified?: string; payment_success?: string }>
+  searchParams: Promise<{
+    verified?: string
+    payment_success?: string
+    step?: string
+    plan_id?: string
+    price_id?: string
+    plan_name?: string
+    interval?: string
+  }>
 }
 
 export default async function OnboardingPage({ searchParams }: OnboardingPageProps) {
@@ -11,20 +20,14 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
   const params = await searchParams
 
   // Check authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
   if (authError) {
-    // If there's an actual error (not just no user), we might want to log it or handle it
     console.error('Auth check error:', authError)
   }
-
-  // NOTE: We allow unauthenticated users here for the new flow (Step 1-3).
-  // The OnboardingFlow component handles the account creation step.
-
-
-  // Trust middleware - if we're on this page, user has no organizations
-  // Middleware already checked and redirected users without orgs here
-  // No need to check again (avoids blocking materialized view refresh)
 
   // Check for pending invitation
   const { data: invitation } = await supabase
@@ -44,10 +47,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
 
     if (now > expiresAt) {
       // Mark as expired
-      await supabase
-        .from('invitations')
-        .update({ status: 'expired' })
-        .eq('id', invitation.id)
+      await supabase.from('invitations').update({ status: 'expired' }).eq('id', invitation.id)
     } else {
       // Get invitation details with organization and role info
       const { data: permissions } = await supabase
@@ -66,7 +66,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
           .single()
 
         // Get workspace permissions count
-        const { data: workspacePerms, count } = await supabase
+        const { count } = await supabase
           .from('permissions')
           .select('id', { count: 'exact', head: true })
           .eq('object_type', 'workspace')
@@ -85,14 +85,35 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
     }
   }
 
+  // Determine initial step based on query parameters
+  let initialStep: 'signup' | 'verify-email' | 'create-organization' | 'payment' | 'create-workspace' = 'signup'
+
+  if (params.step) {
+    initialStep = params.step as any
+  } else if (params.payment_success === 'true') {
+    initialStep = 'create-workspace'
+  } else if (params.verified === 'true' || user?.email_confirmed_at) {
+    initialStep = 'create-organization'
+  } else if (user && !user.email_confirmed_at) {
+    initialStep = 'verify-email'
+  }
+
+  // If user has an invitation, show invitation acceptance flow
+  if (invitationDetails) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="w-full max-w-2xl">
+          <InvitationAcceptance invitationDetails={invitationDetails} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <OnboardingFlowWrapper
-        userEmail={user?.email || ''}
-        invitationDetails={invitationDetails}
-        verified={params.verified === 'true'}
-        paymentSuccess={params.payment_success === 'true'}
-      />
+      <div className="w-full max-w-2xl">
+        <OnboardingWizard initialStep={initialStep} userEmail={user?.email || ''} />
+      </div>
     </div>
   )
 }

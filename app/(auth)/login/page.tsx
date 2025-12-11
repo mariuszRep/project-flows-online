@@ -12,7 +12,7 @@ export default function LoginPage() {
       <OAuthButtons />
       <div className="text-center text-sm">
         Don&apos;t have an account?{' '}
-        <Link href="/signup" className="text-primary hover:underline">
+        <Link href="/#plans" className="text-primary hover:underline">
           Sign up
         </Link>
       </div>

@@ -5,7 +5,7 @@ import {
   createWorkspaceSchema,
   type CreateOrganizationParams,
   type CreateWorkspaceParams,
-} from '@/features/onboarding/validations'
+} from '@/features/auth/onboarding-validations'
 
 export type {
   CreateOrganizationParams,
