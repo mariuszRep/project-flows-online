@@ -128,7 +128,7 @@ export async function createSubscriptionCheckoutSession(
         metadata: subscriptionMetadata,
       },
       success_url: successUrl,
-      cancel_url: params.orgId ? `${baseUrl}/organizations` : `${baseUrl}/plans`,
+      cancel_url: params.orgId ? `${baseUrl}/organization` : `${baseUrl}/plans`,
     })
 
     if (!session.url) {

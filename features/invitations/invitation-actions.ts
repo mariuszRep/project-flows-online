@@ -43,8 +43,8 @@ export async function sendInvitation(
       inviterId: user.id,
     })
 
-    // Revalidate organization settings page
-    revalidatePath(`/organization/${params.orgId}/settings`)
+    // Revalidate organization page
+    revalidatePath(`/organization/${params.orgId}`)
 
     return {
       success: true,
@@ -205,7 +205,50 @@ export async function acceptInvitation(
 }
 
 /**
- * Revoke an invitation
+ * Decline an invitation (user-facing action)
+ */
+export async function declineInvitation(
+  invitationId: string
+): Promise<{
+  success: boolean
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    // Update invitation status to 'declined'
+    const { error: updateError } = await supabase
+      .from('invitations')
+      .update({ status: 'declined', updated_at: new Date().toISOString() })
+      .eq('id', invitationId)
+      .eq('user_id', user.id) // Ensure user can only decline their own invitations
+
+    if (updateError) {
+      throw new Error(`Failed to decline invitation: ${updateError.message}`)
+    }
+
+    revalidatePath('/organization')
+    return { success: true }
+  } catch (error) {
+    console.error('Error declining invitation:', error)
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to decline invitation'
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Revoke an invitation (admin action)
  */
 export async function revokeInvitation(
   invitationId: string,
@@ -235,8 +278,8 @@ export async function revokeInvitation(
     // Revoke invitation
     const result = await invitationService.revokeInvitation(invitationId, organizationId)
 
-    // Revalidate organization settings page
-    revalidatePath(`/organization/${organizationId}/settings`)
+    // Revalidate organization page
+    revalidatePath(`/organization/${organizationId}`)
 
     return {
       success: true,
@@ -294,8 +337,8 @@ export async function bulkRevokeInvitations(
       }
     }
 
-    // Revalidate organization settings page
-    revalidatePath(`/organization/${organizationId}/settings`)
+    // Revalidate organization page
+    revalidatePath(`/organization/${organizationId}`)
 
     return {
       success: true,

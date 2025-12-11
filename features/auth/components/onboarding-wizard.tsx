@@ -394,7 +394,7 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
         sessionStorage.removeItem('onboarding_price_id')
 
         // Redirect to organizations list
-        router.push('/organizations')
+        router.push('/organization')
       } else {
         toast.error('Failed to create workspace', {
           description: result.error || 'An unexpected error occurred',

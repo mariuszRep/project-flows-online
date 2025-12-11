@@ -57,7 +57,7 @@ async function SettingsContent({ searchParams }: { searchParams?: { error?: stri
   // If user has organizations, redirect to the first one's settings page
   if (result.organizations && result.organizations.length > 0) {
     const firstOrg = result.organizations[0]
-    redirect(`/organization/${firstOrg.id}/settings`)
+    redirect(`/organization/${firstOrg.id}`)
   }
 
   const userData = {

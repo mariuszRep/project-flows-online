@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
   // Check if this is from email verification during onboarding
   const isOnboarding = searchParams.get('type') === 'onboarding'
-  const defaultNext = isOnboarding ? '/onboarding?verified=true' : '/organizations'
+  const defaultNext = isOnboarding ? '/onboarding?verified=true' : '/organization'
 
   const nextParam = searchParams.get('next') ?? defaultNext
 

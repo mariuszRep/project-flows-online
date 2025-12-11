@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { OnboardingWizard } from '@/features/auth/components/onboarding-wizard'
-import { InvitationAcceptance } from '@/features/auth/components/invitation-acceptance'
 import { OnboardingProgressService } from '@/services/onboarding-progress-service'
 
 interface OnboardingPageProps {
@@ -30,7 +29,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
     console.error('Auth check error:', authError)
   }
 
-  // Check for pending invitation
+  // Check for pending invitation - if found, redirect to organization list where it will be displayed
   const { data: invitation } = await supabase
     .from('invitations')
     .select('id, status, expires_at')
@@ -38,8 +37,6 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-
-  let invitationDetails = null
 
   if (invitation) {
     // Check if invitation is expired
@@ -50,39 +47,8 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
       // Mark as expired
       await supabase.from('invitations').update({ status: 'expired' }).eq('id', invitation.id)
     } else {
-      // Get invitation details with organization and role info
-      const { data: permissions } = await supabase
-        .from('permissions')
-        .select('object_id, role_id, roles!inner(name, description)')
-        .eq('object_type', 'organization')
-        .limit(1)
-        .maybeSingle()
-
-      if (permissions) {
-        // Get organization name
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('id, name')
-          .eq('id', permissions.object_id)
-          .single()
-
-        // Get workspace permissions count
-        const { count } = await supabase
-          .from('permissions')
-          .select('id', { count: 'exact', head: true })
-          .eq('object_type', 'workspace')
-
-        const roles = permissions.roles as unknown as { name: string; description: string | null }
-
-        invitationDetails = {
-          invitationId: invitation.id,
-          organizationId: org?.id || '',
-          organizationName: org?.name || 'Unknown Organization',
-          roleName: roles?.name || 'Unknown',
-          roleDescription: roles?.description || null,
-          workspaceCount: count || 0,
-        }
-      }
+      // Redirect to organization list where invitation cards are displayed
+      redirect('/organization')
     }
   }
 
@@ -113,7 +79,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
       } catch (error) {
         console.error('Failed to clean up onboarding progress:', error)
       }
-      redirect('/organizations')
+      redirect('/organization')
     }
 
     // Load saved progress from database
@@ -193,11 +159,6 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
     if (params.step) {
       initialStep = params.step as any
     }
-  }
-
-  // If user has an invitation, show invitation acceptance flow
-  if (invitationDetails) {
-    return <InvitationAcceptance invitationDetails={invitationDetails} />
   }
 
   return <OnboardingWizard initialStep={initialStep} userEmail={user?.email || ''} />

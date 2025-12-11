@@ -56,7 +56,7 @@ export default async function SubscriptionSuccessPage({
 
         <div className="flex gap-4 justify-center">
           <Button asChild>
-            <Link href="/organizations">Go to Dashboard</Link>
+            <Link href="/organization">Go to Dashboard</Link>
           </Button>
         </div>
 

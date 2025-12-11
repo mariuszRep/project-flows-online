@@ -212,7 +212,8 @@ export async function getPostAuthRedirectPath(): Promise<string> {
     const expiresAt = new Date(pendingInvitation.expires_at)
 
     if (now <= expiresAt) {
-      return `/accept-invitation?id=${pendingInvitation.id}`
+      // Redirect to organization list where invitation cards are displayed
+      return '/organization'
     } else {
       // Mark as expired
       await supabase
@@ -242,5 +243,5 @@ export async function getPostAuthRedirectPath(): Promise<string> {
   }
 
   // Has orgs and workspaces - send to organizations list
-  return '/organizations'
+  return '/organization'
 }

@@ -110,7 +110,7 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
     if (isOrgSpecificPage) {
       const params = new URLSearchParams(searchParams?.toString() || '')
       const queryString = params.toString()
-      const newPath = `/organization/${org.id}/settings${queryString ? `?${queryString}` : ''}`
+      const newPath = `/organization/${org.id}${queryString ? `?${queryString}` : ''}`
       router.push(newPath)
     }
   }

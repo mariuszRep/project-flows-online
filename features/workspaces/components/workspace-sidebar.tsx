@@ -184,7 +184,7 @@ export function WorkspaceSidebar({ ...props }: React.ComponentProps<typeof Sideb
     }
 
   const manageUrl = organizationId
-    ? `/organization/${organizationId}/settings?section=workspaces`
+    ? `/organization/${organizationId}?section=workspaces`
     : '/settings'
 
   return (
