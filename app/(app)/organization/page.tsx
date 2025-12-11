@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { OrganizationCard } from '@/features/organizations/components/organization-card'
-import { Button } from '@/components/ui/button'
-import { Plus, Building2 } from 'lucide-react'
-import Link from 'next/link'
+import { OrganizationListClient } from '@/features/organizations/components/organization-list-client'
+import { Building2 } from 'lucide-react'
 
 export default async function OrganizationsPage() {
   const supabase = await createClient()
@@ -114,59 +113,24 @@ export default async function OrganizationsPage() {
   // Use only the user's organizations (invitations will be attached via the map)
   const allOrgs = organizations || []
 
-  return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
-          <p className="text-muted-foreground mt-2">
-            Select an organization to view its workspaces
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/organization/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Organization
-          </Link>
-        </Button>
-      </div>
+  // Prepare organization data for client component
+  const organizationsData = allOrgs.map((org) => {
+    const invitation = invitationMap.get(org.id)
+    return {
+      id: org.id,
+      name: org.name,
+      memberCount: memberCountMap.get(org.id) || 0,
+      workspaceCount: workspaceCountMap.get(org.id) || 0,
+      invitation: invitation ? {
+        invitationId: invitation.invitationId,
+        roleName: invitation.roleName,
+        roleDescription: invitation.roleDescription,
+        expiresAt: invitation.expiresAt,
+      } : undefined,
+    }
+  })
 
-      {/* All Organizations (with optional invitation attachments) */}
-      {allOrgs && allOrgs.length > 0 ? (
-        <div className="space-y-3">
-          {allOrgs.map((org) => {
-            const invitation = invitationMap.get(org.id)
-            return (
-              <OrganizationCard
-                key={org.id}
-                id={org.id}
-                name={org.name}
-                memberCount={memberCountMap.get(org.id) || 0}
-                workspaceCount={workspaceCountMap.get(org.id) || 0}
-                isInvitation={!!invitation}
-                invitationId={invitation?.invitationId}
-                roleName={invitation?.roleName}
-                roleDescription={invitation?.roleDescription}
-                expiresAt={invitation?.expiresAt}
-              />
-            )
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-12 border-2 border-dashed rounded-lg">
-          <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No organizations yet</h3>
-          <p className="text-muted-foreground mb-4">
-            Get started by creating your first organization
-          </p>
-          <Button asChild>
-            <Link href="/organization/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Organization
-            </Link>
-          </Button>
-        </div>
-      )}
-    </div>
+  return (
+    <OrganizationListClient organizations={organizationsData} />
   )
 }
