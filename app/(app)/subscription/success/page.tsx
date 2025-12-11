@@ -58,9 +58,6 @@ export default async function SubscriptionSuccessPage({
           <Button asChild>
             <Link href="/portal">Go to Dashboard</Link>
           </Button>
-          <Button variant="outline" asChild>
-            <Link href="/subscription/test">Test Another Subscription</Link>
-          </Button>
         </div>
 
         <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900 p-4 space-y-2">
