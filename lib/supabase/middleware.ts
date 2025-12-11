@@ -51,8 +51,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Note: Onboarding check is handled by /portal page to avoid duplicate queries
-  // Middleware only handles authentication - organization membership checks happen in portal
+  // Note: Onboarding and routing logic is handled by auth actions
+  // Middleware only handles authentication - organization membership checks happen in auth flow
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
   // creating a new response object with NextResponse.next() make sure to:

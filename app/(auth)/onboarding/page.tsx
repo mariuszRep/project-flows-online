@@ -113,7 +113,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
       } catch (error) {
         console.error('Failed to clean up onboarding progress:', error)
       }
-      redirect('/portal')
+      redirect('/organizations')
     }
 
     // Load saved progress from database

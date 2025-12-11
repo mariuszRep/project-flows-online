@@ -11,7 +11,7 @@ export default async function AcceptInvitationPage({
   const invitationId = params.id
 
   if (!invitationId) {
-    redirect('/portal')
+    redirect('/organizations')
   }
 
   const supabase = await createClient()
@@ -31,7 +31,7 @@ export default async function AcceptInvitationPage({
 
   if (!invitation) {
     // Invitation doesn't exist or already processed
-    redirect('/portal')
+    redirect('/organizations')
   }
 
   const now = new Date()
@@ -43,7 +43,7 @@ export default async function AcceptInvitationPage({
       .from('invitations')
       .update({ status: 'expired' })
       .eq('id', invitationId)
-    redirect('/portal')
+    redirect('/organizations')
   }
 
   // Accept the invitation
@@ -53,6 +53,6 @@ export default async function AcceptInvitationPage({
     console.error('Failed to accept invitation:', result.error)
   }
 
-  // Redirect back to portal which will now have the updated permissions
-  redirect('/portal')
+  // Redirect to organizations list which will now show the accepted organization
+  redirect('/organizations')
 }
