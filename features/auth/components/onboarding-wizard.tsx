@@ -86,9 +86,32 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
             if (progress.selected_plan_name) sessionStorage.setItem('onboarding_plan_name', progress.selected_plan_name)
             if (progress.selected_plan_interval) sessionStorage.setItem('onboarding_interval', progress.selected_plan_interval)
             if (progress.organization_id) sessionStorage.setItem('onboarding_org_id', progress.organization_id)
+
+            // If we're on create-organization step but org already exists, skip to payment
+            if (currentStep === 'create-organization' && progress.organization_id) {
+              console.log('Organization already exists, skipping to payment')
+              setCurrentStep('payment')
+            }
           }
         } catch (error) {
           console.error('Failed to load onboarding progress from database:', error)
+        }
+
+        // Check if organization already exists in database
+        if (currentStep === 'create-organization') {
+          const { data: existingOrg } = await supabase
+            .from('organizations')
+            .select('id, name')
+            .limit(1)
+            .maybeSingle()
+
+          if (existingOrg) {
+            console.log('Found existing organization, skipping to payment')
+            setOrganizationId(existingOrg.id)
+            sessionStorage.setItem('onboarding_org_id', existingOrg.id)
+            sessionStorage.setItem('onboarding_org_name', existingOrg.name)
+            setCurrentStep('payment')
+          }
         }
       }
 
