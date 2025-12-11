@@ -123,7 +123,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
 
       if (progress) {
         // Map wizard_step to step name
-        const stepMap: Record<number, typeof initialStep> = {
+        const stepMap: Record<number, 'signup' | 'verify-email' | 'create-organization' | 'payment' | 'create-workspace'> = {
           1: 'signup',
           2: 'verify-email',
           3: 'create-organization',
@@ -197,20 +197,8 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
 
   // If user has an invitation, show invitation acceptance flow
   if (invitationDetails) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="w-full max-w-2xl">
-          <InvitationAcceptance invitationDetails={invitationDetails} />
-        </div>
-      </div>
-    )
+    return <InvitationAcceptance invitationDetails={invitationDetails} />
   }
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-2xl">
-        <OnboardingWizard initialStep={initialStep} userEmail={user?.email || ''} />
-      </div>
-    </div>
-  )
+  return <OnboardingWizard initialStep={initialStep} userEmail={user?.email || ''} />
 }

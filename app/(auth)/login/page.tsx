@@ -5,7 +5,7 @@ import { OAuthButtons } from '@/features/auth/components/oauth-buttons'
 
 export default function LoginPage() {
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-md mx-auto space-y-6">
       <Suspense fallback={<div>Loading...</div>}>
         <LoginForm />
       </Suspense>
