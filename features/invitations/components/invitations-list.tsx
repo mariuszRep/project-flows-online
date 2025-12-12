@@ -108,7 +108,7 @@ export function InvitationsList({ organizationId, onInviteUser, onBulkRevoke }: 
   }
 
   const handleConfigureWorkspaces = (userId: string) => {
-    router.push(`/organization/${organizationId}/settings/invitations/${userId}/workspaces`)
+    router.push(`/organization/${organizationId}/invitations/${userId}/workspaces`)
   }
 
   const handleResendEmail = async (invitationId: string, email: string) => {

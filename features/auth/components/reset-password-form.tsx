@@ -29,7 +29,7 @@ export function ResetPasswordForm() {
       if (result.error) {
         setError(result.error)
       }
-      // If successful, updatePassword will redirect to /portal
+      // If successful, updatePassword will redirect based on user state
     } catch (err) {
       setError('An unexpected error occurred')
     } finally {

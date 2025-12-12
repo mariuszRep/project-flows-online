@@ -77,7 +77,7 @@ export async function createRole(data: CreateRoleInput): Promise<{
 
     if (result.success) {
       revalidatePath('/settings')
-      revalidatePath(`/organization/${data.org_id}/settings`)
+      revalidatePath(`/organization/${data.org_id}`)
       return result
     }
 
@@ -123,7 +123,7 @@ export async function updateRole(id: string, data: UpdateRoleInput): Promise<{
 
     if (result.success && role?.org_id) {
       revalidatePath('/settings')
-      revalidatePath(`/organization/${role.org_id}/settings`)
+      revalidatePath(`/organization/${role.org_id}`)
       return result
     }
 
@@ -186,7 +186,7 @@ export async function deleteRole(id: string): Promise<{
 
     if (result.success && role?.org_id) {
       revalidatePath('/settings')
-      revalidatePath(`/organization/${role.org_id}/settings`)
+      revalidatePath(`/organization/${role.org_id}`)
       return result
     }
 

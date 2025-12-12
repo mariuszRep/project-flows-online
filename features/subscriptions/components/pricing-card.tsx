@@ -16,7 +16,6 @@ import { Badge } from '@/components/ui/badge'
 import { type PricingPlan, formatPrice } from '@/config/stripe'
 import { createSubscriptionCheckoutWithPrice } from '../subscription-actions'
 import { useAuth } from '@/hooks/use-auth'
-import { useOnboardingStore } from '@/lib/stores/onboarding-store'
 import { createClient } from '@/lib/supabase/client'
 
 interface PricingCardProps {
@@ -35,7 +34,6 @@ export function PricingCard({ plan, currentPlanId, className }: PricingCardProps
   const [error, setError] = useState<string | null>(null)
   const isCurrentPlan = currentPlanId === plan.id
   const { user } = useAuth()
-  const { setSelectedPlan, goToStep, reset } = useOnboardingStore()
   const router = useRouter()
 
   const handleSubscribe = async () => {
@@ -45,12 +43,15 @@ export function PricingCard({ plan, currentPlanId, className }: PricingCardProps
     setError(null)
 
     try {
-      // If user is not authenticated, redirect to onboarding with plan pre-selected
+      // If user is not authenticated, redirect to onboarding with plan details in URL
       if (!user) {
-        reset()
-        setSelectedPlan(plan.id, plan.name, plan.interval, plan.priceId)
-        goToStep(0)
-        router.push('/onboarding')
+        const params = new URLSearchParams({
+          plan_id: plan.id,
+          plan_name: plan.name,
+          interval: plan.interval,
+          price_id: plan.priceId,
+        })
+        router.push(`/onboarding?${params.toString()}`)
         setIsLoading(false)
         return
       }
@@ -63,12 +64,15 @@ export function PricingCard({ plan, currentPlanId, className }: PricingCardProps
         .eq('object_type', 'organization')
         .limit(1)
 
-      // If no organizations, redirect to onboarding with plan pre-selected
+      // If no organizations, redirect to onboarding with plan details in URL
       if (!permissions || permissions.length === 0) {
-        reset()
-        setSelectedPlan(plan.id, plan.name, plan.interval, plan.priceId)
-        goToStep(0)
-        router.push('/onboarding')
+        const params = new URLSearchParams({
+          plan_id: plan.id,
+          plan_name: plan.name,
+          interval: plan.interval,
+          price_id: plan.priceId,
+        })
+        router.push(`/onboarding?${params.toString()}`)
         setIsLoading(false)
         return
       }

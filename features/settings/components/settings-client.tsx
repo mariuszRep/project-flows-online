@@ -4,13 +4,23 @@ import * as React from 'react'
 import { Folder, Shield } from 'lucide-react'
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SidebarLayout } from '@/components/layout/sidebar-layout'
-import { SettingsSidebar, type SettingsSection, type AccessSubsection } from '@/features/settings/components/settings-sidebar'
+import { ContentWrapper } from '@/components/layout/content-wrapper'
+import { SettingsSidebar, type SettingsSection, type AccessSubsection, type GeneralSubsection, type SubscriptionSubsection, type AccountSubsection } from '@/features/settings/components/settings-sidebar'
 import { WorkspaceManager } from '@/features/workspaces/components/workspace-manager'
 import { PermissionsList } from '@/features/permissions/components/permissions-list'
 import { RolesList } from '@/features/roles/components/roles-list'
 import { InvitationsList } from '@/features/invitations/components/invitations-list'
+import { BillingContent } from '@/features/subscriptions/components/billing-content'
 import { getUserOrganizations } from '@/features/organizations/organization-actions'
 import type { Organization } from '@/types/database'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 
 interface SettingsClientProps {
   organizations: Organization[]
@@ -30,6 +40,9 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
 
   const [activeSection, setActiveSection] = React.useState<SettingsSection>('workspaces')
   const [activeSubsection, setActiveSubsection] = React.useState<AccessSubsection>('permissions')
+  const [activeGeneralSubsection, setActiveGeneralSubsection] = React.useState<GeneralSubsection>('profile')
+  const [activeSubscriptionSubsection, setActiveSubscriptionSubsection] = React.useState<SubscriptionSubsection>('billing')
+  const [activeAccountSubsection, setActiveAccountSubsection] = React.useState<AccountSubsection>('profile')
   const [organizations, setOrganizations] = React.useState<Organization[]>(initialOrganizations)
   const [selectedOrgId, setSelectedOrgId] = React.useState<string | null>(
     urlOrgId || (initialOrganizations.length > 0 ? initialOrganizations[0].id : null)
@@ -77,14 +90,22 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
     // Sync URL params with state only when URL actually changes
     if (urlChanged) {
       const sectionParam = searchParams?.get('section') as SettingsSection | null
-      const subsectionParam = searchParams?.get('subsection') as AccessSubsection | null
+      const subsectionParam = searchParams?.get('subsection')
 
-      if (sectionParam && (sectionParam === 'access' || sectionParam === 'workspaces')) {
+      if (sectionParam && (sectionParam === 'access' || sectionParam === 'workspaces' || sectionParam === 'general' || sectionParam === 'subscription' || sectionParam === 'account')) {
         setActiveSection(sectionParam)
       }
 
-      if (subsectionParam && (subsectionParam === 'permissions' || subsectionParam === 'roles' || subsectionParam === 'invitations')) {
-        setActiveSubsection(subsectionParam)
+      if (subsectionParam) {
+        if (sectionParam === 'access' && (subsectionParam === 'permissions' || subsectionParam === 'roles' || subsectionParam === 'invitations')) {
+          setActiveSubsection(subsectionParam)
+        } else if (sectionParam === 'general' && subsectionParam === 'profile') {
+          setActiveGeneralSubsection(subsectionParam as GeneralSubsection)
+        } else if (sectionParam === 'subscription' && subsectionParam === 'billing') {
+          setActiveSubscriptionSubsection(subsectionParam as SubscriptionSubsection)
+        } else if (sectionParam === 'account' && (subsectionParam === 'profile' || subsectionParam === 'security')) {
+          setActiveAccountSubsection(subsectionParam as AccountSubsection)
+        }
       }
     }
   }, [urlOrgId, initialOrganizations, searchParams])
@@ -110,7 +131,7 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
     if (isOrgSpecificPage) {
       const params = new URLSearchParams(searchParams?.toString() || '')
       const queryString = params.toString()
-      const newPath = `/organization/${org.id}/settings${queryString ? `?${queryString}` : ''}`
+      const newPath = `/organization/${org.id}${queryString ? `?${queryString}` : ''}`
       router.push(newPath)
     }
   }
@@ -131,6 +152,12 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
     // If switching to access section, set default subsection
     if (section === 'access') {
       paramsCopy.set('subsection', activeSubsection)
+    } else if (section === 'general') {
+      paramsCopy.set('subsection', activeGeneralSubsection)
+    } else if (section === 'subscription') {
+      paramsCopy.set('subsection', activeSubscriptionSubsection)
+    } else if (section === 'account') {
+      paramsCopy.set('subsection', activeAccountSubsection)
     } else {
       paramsCopy.delete('subsection')
     }
@@ -158,8 +185,59 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
   }
 
-  const renderEmptyState = (title: string, description: string, icon: 'workspaces' | 'permissions') => {
-    const Icon = icon === 'workspaces' ? Folder : Shield
+  const handleGeneralSubsectionChange = (subsection: GeneralSubsection) => {
+    const currentSection = searchParams?.get('section')
+    const currentSubsection = searchParams?.get('subsection')
+
+    if (currentSection === 'general' && currentSubsection === subsection) {
+      return
+    }
+
+    setActiveGeneralSubsection(subsection)
+    const paramsCopy = new URLSearchParams(searchParams?.toString() || '')
+    paramsCopy.set('section', 'general')
+    paramsCopy.set('subsection', subsection)
+    const queryString = paramsCopy.toString()
+    isUpdatingRef.current = true
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }
+
+  const handleSubscriptionSubsectionChange = (subsection: SubscriptionSubsection) => {
+    const currentSection = searchParams?.get('section')
+    const currentSubsection = searchParams?.get('subsection')
+
+    if (currentSection === 'subscription' && currentSubsection === subsection) {
+      return
+    }
+
+    setActiveSubscriptionSubsection(subsection)
+    const paramsCopy = new URLSearchParams(searchParams?.toString() || '')
+    paramsCopy.set('section', 'subscription')
+    paramsCopy.set('subsection', subsection)
+    const queryString = paramsCopy.toString()
+    isUpdatingRef.current = true
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }
+
+  const handleAccountSubsectionChange = (subsection: AccountSubsection) => {
+    const currentSection = searchParams?.get('section')
+    const currentSubsection = searchParams?.get('subsection')
+
+    if (currentSection === 'account' && currentSubsection === subsection) {
+      return
+    }
+
+    setActiveAccountSubsection(subsection)
+    const paramsCopy = new URLSearchParams(searchParams?.toString() || '')
+    paramsCopy.set('section', 'account')
+    paramsCopy.set('subsection', subsection)
+    const queryString = paramsCopy.toString()
+    isUpdatingRef.current = true
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }
+
+  const renderEmptyState = (title: string, description: string, icon: 'workspaces' | 'permissions' | 'settings' | 'account') => {
+    const Icon = icon === 'workspaces' ? Folder : icon === 'permissions' ? Shield : icon === 'settings' ? Folder : Shield // Adjust icons as needed
     return (
       <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-10 text-center">
         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/5">
@@ -185,11 +263,23 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
 
     switch (activeSubsection) {
       case 'permissions':
-        return <PermissionsList organizationId={selectedOrgId} />
+        return (
+          <ContentWrapper variant="full">
+            <PermissionsList organizationId={selectedOrgId} />
+          </ContentWrapper>
+        )
       case 'roles':
-        return <RolesList organizationId={selectedOrgId} />
+        return (
+          <ContentWrapper variant="full">
+            <RolesList organizationId={selectedOrgId} />
+          </ContentWrapper>
+        )
       case 'invitations':
-        return <InvitationsList organizationId={selectedOrgId} />
+        return (
+          <ContentWrapper variant="full">
+            <InvitationsList organizationId={selectedOrgId} />
+          </ContentWrapper>
+        )
       default:
         return null
     }
@@ -198,10 +288,12 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
   const workspaceContent = React.useMemo(() => {
     if (selectedOrgId && selectedOrg) {
       return (
-        <WorkspaceManager
-          organizationId={selectedOrgId}
-          organizationName={selectedOrg.name}
-        />
+        <ContentWrapper variant="full">
+          <WorkspaceManager
+            organizationId={selectedOrgId}
+            organizationName={selectedOrg.name}
+          />
+        </ContentWrapper>
       )
     }
     return renderEmptyState(
@@ -210,6 +302,57 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
       'workspaces'
     )
   }, [selectedOrgId, selectedOrg])
+
+  const generalContent = React.useMemo(() => {
+    if (!selectedOrgId) {
+      return renderEmptyState(
+        'Select an organization to manage general settings',
+        'Pick an organization from the sidebar to view general settings.',
+        'settings'
+      )
+    }
+    return (
+      <ContentWrapper variant="narrow">
+        <div className="flex flex-col gap-4">
+          <h2 className="text-xl font-semibold capitalize">{activeGeneralSubsection}</h2>
+          <p className="text-muted-foreground">This is a placeholder for the {activeGeneralSubsection} settings.</p>
+        </div>
+      </ContentWrapper>
+    )
+  }, [selectedOrgId, activeGeneralSubsection])
+
+  const subscriptionContent = React.useMemo(() => {
+    if (!selectedOrgId) {
+      return renderEmptyState(
+        'Select an organization to manage subscription',
+        'Pick an organization from the sidebar to view subscription and billing.',
+        'settings'
+      )
+    }
+    return (
+      <ContentWrapper variant="full">
+        <BillingContent organizationId={selectedOrgId} />
+      </ContentWrapper>
+    )
+  }, [selectedOrgId])
+
+  const accountContent = React.useMemo(() => {
+    if (!selectedOrgId) {
+      return renderEmptyState(
+        'Select an organization to manage account settings',
+        'Pick an organization from the sidebar to view account settings.',
+        'account'
+      )
+    }
+    return (
+      <ContentWrapper variant="narrow">
+        <div className="flex flex-col gap-4">
+          <h2 className="text-xl font-semibold capitalize">{activeAccountSubsection}</h2>
+          <p className="text-muted-foreground">This is a placeholder for the {activeAccountSubsection} settings.</p>
+        </div>
+      </ContentWrapper>
+    )
+  }, [selectedOrgId, activeAccountSubsection])
 
   return (
     <SidebarLayout
@@ -222,24 +365,123 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
           onSectionChange={handleSectionChange}
           activeSubsection={activeSubsection}
           onSubsectionChange={handleSubsectionChange}
+          activeGeneralSubsection={activeGeneralSubsection}
+          onGeneralSubsectionChange={handleGeneralSubsectionChange}
+          activeSubscriptionSubsection={activeSubscriptionSubsection}
+          onSubscriptionSubsectionChange={handleSubscriptionSubsectionChange}
+          activeAccountSubsection={activeAccountSubsection}
+          onAccountSubsectionChange={handleAccountSubsectionChange}
           user={user}
           navigationDisabled={!selectedOrgId}
         />
       }
       header={
-        <div>
-          <p className="text-sm text-muted-foreground">Organization Settings</p>
-          <h1 className="text-lg font-semibold leading-6">
-            {selectedOrg?.name || 'Select an organization'}
-          </h1>
-        </div>
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink href="/organization">
+                Organization
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbItem>
+              <BreadcrumbLink href={`/organization/${selectedOrgId}`}>
+                {selectedOrg?.name || 'Select Organization'}
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            {activeSection === 'access' ? (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSectionChange('access')
+                    }}
+                  >
+                    Access
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="capitalize">{activeSubsection}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            ) : activeSection === 'general' ? (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSectionChange('general')
+                    }}
+                  >
+                    General
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="capitalize">{activeGeneralSubsection}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            ) : activeSection === 'subscription' ? (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSectionChange('subscription')
+                    }}
+                  >
+                    Subscription
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="capitalize">{activeSubscriptionSubsection}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            ) : activeSection === 'account' ? (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSectionChange('account')
+                    }}
+                  >
+                    Account
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="capitalize">{activeAccountSubsection}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            ) : (
+              <BreadcrumbItem>
+                <BreadcrumbPage className="capitalize">{activeSection}</BreadcrumbPage>
+              </BreadcrumbItem>
+            )}
+          </BreadcrumbList>
+        </Breadcrumb>
       }
     >
-      <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
+      <div className="flex flex-1 flex-col gap-6">
         {activeSection === 'workspaces' ? (
           workspaceContent
         ) : activeSection === 'access' ? (
           accessContent
+        ) : activeSection === 'general' ? (
+          generalContent
+        ) : activeSection === 'subscription' ? (
+          subscriptionContent
+        ) : activeSection === 'account' ? (
+          accountContent
         ) : null}
       </div>
     </SidebarLayout>

@@ -5,14 +5,14 @@ import { OAuthButtons } from '@/features/auth/components/oauth-buttons'
 
 export default function LoginPage() {
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-md mx-auto space-y-6">
       <Suspense fallback={<div>Loading...</div>}>
         <LoginForm />
       </Suspense>
       <OAuthButtons />
       <div className="text-center text-sm">
         Don&apos;t have an account?{' '}
-        <Link href="/signup" className="text-primary hover:underline">
+        <Link href="/#plans" className="text-primary hover:underline">
           Sign up
         </Link>
       </div>

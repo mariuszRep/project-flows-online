@@ -11,17 +11,21 @@ export default async function middleware(request: NextRequest) {
   }
 
   // Apply rate limiting to auth endpoints
+  // Skip rate limiting in development
+  const isDevelopment = process.env.NODE_ENV === 'development'
+
   if (
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/signup') ||
-    pathname.startsWith('/auth/callback')
+    !isDevelopment &&
+    (pathname.startsWith('/login') ||
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/auth/callback'))
   ) {
     const ip = getClientIp(request)
 
     // Different limits for different endpoints
     const limits = {
       '/login': { name: 'auth-login', limit: 5, windowSeconds: 60 }, // 5 per minute
-      '/signup': { name: 'auth-signup', limit: 5, windowSeconds: 60 }, // 3 per 5 minutes
+      '/onboarding': { name: 'auth-onboarding', limit: 5, windowSeconds: 60 }, // 5 per minute
       '/auth/callback': { name: 'auth-callback', limit: 10, windowSeconds: 60 }, // 10 per minute
     }
 

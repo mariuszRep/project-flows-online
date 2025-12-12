@@ -34,7 +34,7 @@ export async function createOrganization(name: string): Promise<{
 
     // Revalidate settings pages
     revalidatePath('/settings')
-    revalidatePath(`/organization/${organization.id}/settings`)
+    revalidatePath(`/organization/${organization.id}`)
 
     return { success: true, organization }
   } catch (error) {
@@ -102,7 +102,7 @@ export async function updateOrganization(organizationId: string, name: string): 
 
     // Revalidate settings pages
     revalidatePath('/settings')
-    revalidatePath(`/organization/${organizationId}/settings`)
+    revalidatePath(`/organization/${organizationId}`)
 
     return { success: true, organization }
   } catch (error) {
@@ -132,7 +132,7 @@ export async function deleteOrganization(organizationId: string): Promise<{
 
     // Revalidate settings pages
     revalidatePath('/settings')
-    revalidatePath(`/organization/${organizationId}/settings`)
+    revalidatePath(`/organization/${organizationId}`)
 
     return { success: true }
   } catch (error) {

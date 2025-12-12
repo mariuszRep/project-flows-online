@@ -182,9 +182,9 @@ export function MarketingNavbar() {
           ) : user ? (
             <>
               <Button asChild>
-                <Link href="/portal">
+                <Link href="/organization">
                   <LayoutDashboard className="h-5 w-5" />
-                  <span>Portal</span>
+                  <span>Dashboard</span>
                 </Link>
               </Button>
               <Button variant="ghost" onClick={handleSignOut}>

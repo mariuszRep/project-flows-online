@@ -11,6 +11,7 @@ import {
   signInWithOAuthProvider,
   requestPasswordResetEmail,
   updateUserPassword,
+  getPostAuthRedirectPath,
 } from '@/services/auth-service'
 
 /**
@@ -30,7 +31,10 @@ export async function signIn(formData: FormData) {
   }
 
   revalidatePath('/', 'layout')
-  redirect('/portal')
+  
+  // Determine where to redirect based on user state (via service layer)
+  const redirectPath = await getPostAuthRedirectPath()
+  redirect(redirectPath)
 }
 
 export async function signUp(formData: FormData) {
@@ -98,5 +102,8 @@ export async function updatePassword(formData: FormData) {
   }
 
   revalidatePath('/', 'layout')
-  redirect('/portal')
+  
+  // Determine where to redirect based on user state (via service layer)
+  const redirectPath = await getPostAuthRedirectPath()
+  redirect(redirectPath)
 }

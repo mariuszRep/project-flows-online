@@ -137,13 +137,13 @@ export function WorkspacePermissionsForm({
           description: `${workspacePermissions.length} workspace(s) configured`,
           action: {
             label: 'View All',
-            onClick: () => router.push(`/organization/${organizationId}/settings/invitations`),
+            onClick: () => router.push(`/organization/${organizationId}/invitations`),
           },
         })
 
         // Redirect to invitations list
         setTimeout(() => {
-          router.push(`/organization/${organizationId}/settings/invitations`)
+          router.push(`/organization/${organizationId}/invitations`)
         }, 1500)
       } else {
         toast.error('Failed to assign permissions', {
@@ -278,7 +278,7 @@ export function WorkspacePermissionsForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(`/organization/${organizationId}/settings/invitations`)}
+            onClick={() => router.push(`/organization/${organizationId}/invitations`)}
             disabled={isLoading}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />

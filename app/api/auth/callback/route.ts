@@ -28,10 +28,15 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const error_description = searchParams.get('error_description')
-  const nextParam = searchParams.get('next') ?? '/portal'
+
+  // Check if this is from email verification during onboarding
+  const isOnboarding = searchParams.get('type') === 'onboarding'
+  const defaultNext = isOnboarding ? '/onboarding?verified=true' : '/organization'
+
+  const nextParam = searchParams.get('next') ?? defaultNext
 
   // Validate and sanitize redirect path
-  const next = isValidRedirectPath(nextParam) ? nextParam : '/portal'
+  const next = isValidRedirectPath(nextParam) ? nextParam : defaultNext
 
   if (process.env.NODE_ENV === 'development') {
     console.log('[AUTH CALLBACK]', { code: code?.substring(0, 20) + '...', error_description, next, origin })
