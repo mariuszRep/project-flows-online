@@ -11,6 +11,14 @@ import { RolesList } from '@/features/roles/components/roles-list'
 import { InvitationsList } from '@/features/invitations/components/invitations-list'
 import { getUserOrganizations } from '@/features/organizations/organization-actions'
 import type { Organization } from '@/types/database'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 
 interface SettingsClientProps {
   organizations: Organization[]
@@ -227,12 +235,45 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
         />
       }
       header={
-        <div>
-          <p className="text-sm text-muted-foreground">Organization Settings</p>
-          <h1 className="text-lg font-semibold leading-6">
-            {selectedOrg?.name || 'Select an organization'}
-          </h1>
-        </div>
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink href="/organization">
+                Organization
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbItem>
+              <BreadcrumbLink href={`/organization/${selectedOrgId}`}>
+                {selectedOrg?.name || 'Select Organization'}
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            {activeSection === 'access' ? (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSectionChange('access')
+                    }}
+                  >
+                    Access
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="capitalize">{activeSubsection}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            ) : (
+              <BreadcrumbItem>
+                <BreadcrumbPage className="capitalize">{activeSection}</BreadcrumbPage>
+              </BreadcrumbItem>
+            )}
+          </BreadcrumbList>
+        </Breadcrumb>
       }
     >
       <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
