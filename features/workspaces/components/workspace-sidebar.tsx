@@ -136,7 +136,14 @@ const data = {
   ],
 }
 
-export function WorkspaceSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export type WorkspaceSection = 'playground' | 'models' | 'documentation' | 'settings'
+
+interface WorkspaceSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  activeSection?: WorkspaceSection
+  onSectionChange?: (section: WorkspaceSection) => void
+}
+
+export function WorkspaceSidebar({ activeSection, onSectionChange, ...props }: WorkspaceSidebarProps) {
   const { user, organization } = useWorkspace()
   const [workspaces, setWorkspaces] = React.useState<Workspace[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -145,6 +152,32 @@ export function WorkspaceSidebar({ ...props }: React.ComponentProps<typeof Sideb
 
   const organizationId = params?.organizationId as string | undefined
   const workspaceId = params?.workspaceId as string | undefined
+
+  // Update nav data with active state and click handlers
+  const updatedNavMain = data.navMain.map(item => {
+    const sectionName = item.title.toLowerCase() as WorkspaceSection
+    return {
+      ...item,
+      isActive: activeSection === sectionName,
+      onClick: (e: React.MouseEvent) => {
+        if (onSectionChange) {
+          e.preventDefault()
+          onSectionChange(sectionName)
+        }
+      },
+      // Keep submenu items but make them trigger section change if needed, or keeping them as dummy links for now
+      items: item.items.map(subItem => ({
+        ...subItem,
+        url: '#', // Ensure they don't navigate away for now
+        onClick: (e: React.MouseEvent) => {
+          if (onSectionChange) {
+             e.preventDefault()
+             onSectionChange(sectionName)
+          }
+        }
+      }))
+    }
+  })
 
   React.useEffect(() => {
     async function fetchWorkspaces() {
@@ -204,7 +237,7 @@ export function WorkspaceSidebar({ ...props }: React.ComponentProps<typeof Sideb
         )}
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={updatedNavMain} />
         <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
