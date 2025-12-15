@@ -34,7 +34,7 @@ export function WorkspaceCard({ id, organizationId, name, memberCount, updatedAt
   }
 
   return (
-    <Link href={`/organizations/${organizationId}/workspace/${id}`}>
+    <Link href={`/organizations/${organizationId}/workspaces/${id}`}>
       <Card className="hover:border-primary transition-colors cursor-pointer h-full">
         <CardHeader>
           <div className="flex items-start justify-between">

@@ -200,7 +200,7 @@ export function WorkspaceSidebar({ activeSection, onSectionChange, ...props }: W
 
   const handleWorkspaceSwitch = (workspace: { id: string; name: string }) => {
     if (organizationId) {
-      router.push(`/organizations/${organizationId}/workspace/${workspace.id}`)
+      router.push(`/organizations/${organizationId}/workspaces/${workspace.id}`)
     }
   }
 

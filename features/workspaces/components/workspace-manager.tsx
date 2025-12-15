@@ -188,7 +188,7 @@ export function WorkspaceManager({ organizationId, organizationName }: Workspace
                       variant="default"
                       size="sm"
                       className="flex-1"
-                      onClick={() => router.push(`/organizations/${organizationId}/workspace/${workspace.id}`)}
+                      onClick={() => router.push(`/organizations/${organizationId}/workspaces/${workspace.id}`)}
                     >
                       <ArrowRight className="mr-2 h-3 w-3" />
                       Go to Workspace

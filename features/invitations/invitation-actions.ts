@@ -93,7 +93,7 @@ export async function assignWorkspacePermissions(
 
     // Revalidate workspace settings pages
     params.workspacePermissions.forEach(wp => {
-      revalidatePath(`/workspace/${wp.workspaceId}/settings`)
+      revalidatePath(`/workspaces/${wp.workspaceId}/settings`)
     })
 
     return {

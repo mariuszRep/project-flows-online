@@ -95,7 +95,7 @@ export async function createWorkspaceWithPermissions(
     // Revalidate paths
     revalidatePath('/onboarding')
     revalidatePath(`/organizations/${orgId}`)
-    revalidatePath(`/workspace/${workspace.id}`)
+    revalidatePath(`/workspaces/${workspace.id}`)
 
     return {
       success: true,
