@@ -27,6 +27,7 @@ interface OrganizationCardProps {
   roleName?: string
   roleDescription?: string | null
   expiresAt?: string
+  isMember?: boolean // Added isMember prop
   onCreate?: () => void
 }
 
@@ -98,13 +99,13 @@ export function OrganizationCard({
   }
 
   const handleDoubleClick = () => {
-    if (variant === 'default' && id) {
+    if (variant === 'default' && id && isMounted) {
       router.push(`/organizations/${id}/workspaces`)
     }
   }
 
   const handleEnter = () => {
-    if (variant === 'default' && id) {
+    if (variant === 'default' && id && isMounted) {
       router.push(`/organizations/${id}/workspaces`)
     }
   }
@@ -132,7 +133,7 @@ export function OrganizationCard({
   // Invitation Card
   if (variant === 'invitation') {
     return (
-      <Card className="border-2 border-yellow-500 flex flex-col">
+      <Card className="border-2 border-yellow-500 flex flex-col pointer-events-none">
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
@@ -167,14 +168,7 @@ export function OrganizationCard({
             </div>
           )}
         </CardContent>
-        <CardFooter className="gap-2 pt-4">
-          <Button
-            onClick={handleAccept}
-            disabled={isAccepting || isDeclining}
-            className="flex-1"
-          >
-            {isAccepting ? 'Accepting...' : 'Accept'}
-          </Button>
+        <CardFooter className="gap-2 pt-4 pointer-events-auto">
           <Button
             variant="outline"
             onClick={handleDecline}
@@ -182,6 +176,13 @@ export function OrganizationCard({
             className="flex-1"
           >
             {isDeclining ? 'Declining...' : 'Decline'}
+          </Button>
+          <Button
+            onClick={handleAccept}
+            disabled={isAccepting || isDeclining}
+            className="flex-1"
+          >
+            {isAccepting ? 'Accepting...' : 'Accept'}
           </Button>
         </CardFooter>
       </Card>
@@ -203,7 +204,7 @@ export function OrganizationCard({
             <CardTitle className="text-xl">{name}</CardTitle>
             <CardDescription>Double-click to view workspaces</CardDescription>
           </div>
-          {isMounted ? (
+          {isMounted && isMember ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

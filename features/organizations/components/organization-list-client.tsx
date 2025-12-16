@@ -22,6 +22,7 @@ interface OrganizationData {
   name: string
   memberCount: number
   workspaceCount: number
+  isMember?: boolean
   invitation?: {
     invitationId: string
     roleName?: string
@@ -106,6 +107,7 @@ export function OrganizationListClient({ organizations }: OrganizationListClient
               roleName={org.invitation?.roleName}
               roleDescription={org.invitation?.roleDescription}
               expiresAt={org.invitation?.expiresAt}
+              isMember={org.isMember}
             />
           ))}
         </div>
