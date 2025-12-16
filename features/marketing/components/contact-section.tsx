@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Mail } from 'lucide-react'
+import Link from 'next/link'
 
 export function ContactSection() {
   return (
@@ -21,10 +22,10 @@ export function ContactSection() {
 
           <div className="pt-4">
             <Button asChild size="lg">
-              <a href="mailto:sales@yourcompany.com">
+              <Link href="/contact">
                 <Mail className="h-5 w-5" />
-                <span>sales@yourcompany.com</span>
-              </a>
+                <span>Contact Sales Team</span>
+              </Link>
             </Button>
           </div>
         </div>

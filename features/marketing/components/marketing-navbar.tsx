@@ -14,6 +14,8 @@ import {
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
+  NavigationMenuContent,
+  NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
 import { cn } from '@/lib/utils'
@@ -108,6 +110,56 @@ export function MarketingNavbar() {
     }
   }, [pathname])
 
+  const handleNavigationClick = (href: string, hash?: string) => {
+    if (pathname === '/' && hash) {
+      // On homepage, use smooth scroll to section
+      const element = document.getElementById(hash)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' })
+      }
+    } else {
+      // On other pages, navigate to homepage with hash or to dedicated page
+      if (hash === 'contact') {
+        router.push('/contact')
+      } else if (hash === 'plans') {
+        router.push('/plans')
+      } else {
+        router.push(href)
+      }
+    }
+  }
+
+  const resources: { title: string; href: string; description: string }[] = [
+  {
+    title: "About Us",
+    href: "/about",
+    description: "Learn about our mission, vision, and the team behind our platform",
+  },
+]
+
+function ListItem({
+  title,
+  children,
+  href,
+  ...props
+}: React.ComponentPropsWithoutRef<"li"> & { href: string }) {
+  return (
+    <li {...props}>
+      <NavigationMenuLink asChild>
+        <Link 
+          href={href}
+          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+        >
+          <div className="text-sm font-medium leading-none">{title}</div>
+          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+            {children}
+          </p>
+        </Link>
+      </NavigationMenuLink>
+    </li>
+  )
+}
+
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -130,47 +182,63 @@ export function MarketingNavbar() {
           <NavigationMenuList className="flex-wrap">
             <NavigationMenuItem>
               <NavigationMenuLink
-                asChild
                 className={cn(
                   navigationMenuTriggerStyle(),
                   pathname === '/' && activeSection === 'hero' && 'bg-accent text-accent-foreground'
                 )}
+                onClick={() => handleNavigationClick('/', 'hero')}
               >
-                <a href="#hero">Home</a>
+                <span className="cursor-pointer">Home</span>
               </NavigationMenuLink>
             </NavigationMenuItem>
             <NavigationMenuItem>
               <NavigationMenuLink
-                asChild
                 className={cn(
                   navigationMenuTriggerStyle(),
                   pathname === '/' && activeSection === 'features' && 'bg-accent text-accent-foreground'
                 )}
+                onClick={() => handleNavigationClick('/', 'features')}
               >
-                <a href="#features">Features</a>
+                <span className="cursor-pointer">Features</span>
               </NavigationMenuLink>
             </NavigationMenuItem>
             <NavigationMenuItem>
               <NavigationMenuLink
-                asChild
                 className={cn(
                   navigationMenuTriggerStyle(),
-                  pathname === '/' && activeSection === 'plans' && 'bg-accent text-accent-foreground'
+                  (pathname === '/plans' || (pathname === '/' && activeSection === 'plans')) && 'bg-accent text-accent-foreground'
                 )}
+                onClick={() => handleNavigationClick('/plans', 'plans')}
               >
-                <a href="#plans">Plans</a>
+                <span className="cursor-pointer">Plans</span>
               </NavigationMenuLink>
             </NavigationMenuItem>
             <NavigationMenuItem>
               <NavigationMenuLink
-                asChild
                 className={cn(
                   navigationMenuTriggerStyle(),
-                  pathname === '/' && activeSection === 'contact' && 'bg-accent text-accent-foreground'
+                  pathname === '/contact' && 'bg-accent text-accent-foreground'
                 )}
+                onClick={() => handleNavigationClick('/contact', 'contact')}
               >
-                <a href="#contact">Contact</a>
+                <span className="cursor-pointer">Contact</span>
               </NavigationMenuLink>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuTrigger>Resources</NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <ul className="grid gap-2 sm:w-[400px] md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                  {resources.map((resource) => (
+                    <ListItem
+                      key={resource.title}
+                      title={resource.title}
+                      href={resource.href}
+                    >
+                      {resource.description}
+                    </ListItem>
+                  ))}
+                </ul>
+              </NavigationMenuContent>
             </NavigationMenuItem>
           </NavigationMenuList>
         </NavigationMenu>
@@ -197,8 +265,8 @@ export function MarketingNavbar() {
               <Button variant="ghost" asChild>
                 <Link href="/login">Log in</Link>
               </Button>
-              <Button asChild>
-                <a href="#plans">Get Started</a>
+              <Button onClick={() => handleNavigationClick('/plans', 'plans')}>
+                Get Started
               </Button>
             </>
           )}

@@ -11,13 +11,13 @@ export function MarketingFooter() {
         </div>
         <div className="flex items-center gap-4">
           <Link
-            href="/privacy"
+            href="/legal/privacy"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
           >
             Privacy
           </Link>
           <Link
-            href="/terms"
+            href="/legal/terms"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
           >
             Terms
