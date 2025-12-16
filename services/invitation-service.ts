@@ -391,6 +391,26 @@ export class InvitationService {
   }
 
   /**
+   * Check if a user has a pending invitation for a specific organization
+   * Used for layout-level access validation
+   */
+  async hasPendingInvitation(userId: string, orgId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('invitations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('org_id', orgId)
+      .eq('status', 'pending')
+      .maybeSingle()
+
+    if (error) {
+      throw new Error(`Failed to check pending invitation: ${error.message}`)
+    }
+
+    return !!data
+  }
+
+  /**
    * Accept an invitation and update status
    * Validates invitation exists and is not expired
    */

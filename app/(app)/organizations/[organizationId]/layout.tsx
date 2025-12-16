@@ -1,6 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { PermissionsService } from '@/services/permission-service'
+import { InvitationService } from '@/services/invitation-service'
 
 interface OrganizationLayoutProps {
   children: ReactNode
@@ -29,32 +31,24 @@ export default async function OrganizationLayout({
     redirect('/login')
   }
 
+  // Initialize services
+  const permissionsService = new PermissionsService(supabase)
+  const invitationService = new InvitationService(supabase)
+
   // Check if user has permission (membership) for this organization
-  const { data: permission } = await supabase
-    .from('permissions')
-    .select('id')
-    .eq('principal_id', user.id)
-    .eq('org_id', organizationId)
-    .eq('object_type', 'organization')
-    .maybeSingle()
+  const hasAccess = await permissionsService.checkOrgAccess(user.id, organizationId)
 
   // If no permission exists, user is not a member
-  if (!permission) {
+  if (!hasAccess) {
     notFound()
   }
 
   // Check if there's a pending invitation for this user and organization
-  const { data: pendingInvitation } = await supabase
-    .from('invitations')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('org_id', organizationId)
-    .eq('status', 'pending')
-    .maybeSingle()
+  const hasPendingInvite = await invitationService.hasPendingInvitation(user.id, organizationId)
 
   // If pending invitation exists, redirect to organizations list
   // User must accept the invitation first
-  if (pendingInvitation) {
+  if (hasPendingInvite) {
     redirect('/organizations')
   }
 

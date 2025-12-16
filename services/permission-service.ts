@@ -127,4 +127,24 @@ export class PermissionsService {
     // Return unique permissions
     return Array.from(new Set(allPermissions))
   }
+
+  /**
+   * Check if a user has access to an organization
+   * Used for layout-level access validation
+   */
+  async checkOrgAccess(userId: string, orgId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('permissions')
+      .select('id')
+      .eq('principal_id', userId)
+      .eq('org_id', orgId)
+      .eq('object_type', 'organization')
+      .maybeSingle()
+
+    if (error) {
+      throw new Error(`Failed to check organization access: ${error.message}`)
+    }
+
+    return !!data
+  }
 }

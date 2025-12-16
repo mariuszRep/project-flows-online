@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { OrganizationService } from '@/services/organization-service'
 import { WorkspaceManager } from '@/features/workspaces/components/workspace-manager'
 import {
   Breadcrumb,
@@ -28,11 +29,8 @@ export default async function WorkspacesPage({ params }: WorkspacesPageProps) {
   }
 
   // Fetch organization details
-  const { data: organization } = await supabase
-    .from('organizations')
-    .select('id, name')
-    .eq('id', organizationId)
-    .single()
+  const organizationService = new OrganizationService(supabase)
+  const organization = await organizationService.getById(organizationId)
 
   if (!organization) {
     redirect('/organizations')
