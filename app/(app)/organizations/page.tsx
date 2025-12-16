@@ -12,46 +12,36 @@ export default async function OrganizationsPage() {
     redirect('/login')
   }
 
-  // Fetch organizations where user has permissions with LEFT JOIN on pending invitations
-  const { data: userPermissions } = await supabase
-    .from('permissions')
-    .select(`
-      org_id,
-      role_id,
-      organizations!inner(id, name, created_at),
-      roles!inner(name, description)
-    `)
-    .eq('principal_id', user.id)
-    .eq('object_type', 'organization')
-
-  // Fetch pending invitations for this user
-  const { data: pendingInvitations } = await supabase
+  // Fetch all invitations for this user with LEFT JOIN to get organization details
+  // This will show ONLY organizations where user has a pending invitation
+  const { data: invitationsData } = await supabase
     .from('invitations')
-    .select('id, org_id, expires_at')
+    .select(`
+      id,
+      org_id,
+      expires_at,
+      status,
+      organizations!inner(id, name, created_at)
+    `)
     .eq('user_id', user.id)
     .eq('status', 'pending')
 
-  // Create invitation map by org_id
-  const invitationMap = new Map(
-    pendingInvitations?.map(inv => [inv.org_id, inv]) || []
-  )
+  console.log('DEBUG: Invitations with organizations:', invitationsData)
 
-  // Extract unique organizations with invitation status
-  const organizations = userPermissions?.map(perm => {
-    const org = (perm.organizations as any)
-    const role = (perm.roles as any)
-    const invitation = invitationMap.get(perm.org_id)
+  // Map invitations to organization format
+  const organizations = invitationsData?.map(inv => {
+    const org = (inv.organizations as any)
 
     return {
       id: org.id,
       name: org.name,
       created_at: org.created_at,
-      roleName: role?.name,
-      roleDescription: role?.description,
-      invitation: invitation ? {
-        invitationId: invitation.id,
-        expiresAt: invitation.expires_at,
-      } : undefined,
+      roleName: undefined,
+      roleDescription: undefined,
+      invitation: {
+        invitationId: inv.id,
+        expiresAt: inv.expires_at,
+      },
     }
   }) || []
 

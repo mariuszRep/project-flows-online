@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Building2, Users, FolderKanban, Plus, ArrowRight, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -131,14 +132,19 @@ export function OrganizationCard({
   // Invitation Card
   if (variant === 'invitation') {
     return (
-      <Card className="border-2 border-blue-500 flex flex-col">
+      <Card className="border-2 border-yellow-500 flex flex-col">
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
               <Building2 className="h-6 w-6 text-primary" />
             </div>
             <div className="flex-1">
-              <CardTitle className="text-xl">{name}</CardTitle>
+              <div className="flex items-center gap-2 mb-1">
+                <CardTitle className="text-xl">{name}</CardTitle>
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700">
+                  Pending Invitation
+                </Badge>
+              </div>
               <CardDescription>You have been invited to join</CardDescription>
             </div>
           </div>

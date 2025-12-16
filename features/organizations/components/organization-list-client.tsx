@@ -24,8 +24,8 @@ interface OrganizationData {
   workspaceCount: number
   invitation?: {
     invitationId: string
-    roleName: string
-    roleDescription: string | null
+    roleName?: string
+    roleDescription?: string | null
     expiresAt: string
   }
 }
