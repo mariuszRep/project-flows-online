@@ -22,22 +22,69 @@ export default async function OrganizationsPage() {
     invitationService.getPendingInvitations(user.id),
   ])
 
+  // Debug logging - remove after investigation
+  console.log('=== INVITATION DEBUG ===')
+  console.log('Current user ID:', user.id)
+  console.log('Pending invitations fetched:', pendingInvitations)
+  console.log('Pending invitations count:', pendingInvitations.length)
+  console.log('Expected user ID for invitation: 15c34ed5-11d6-4dd2-9661-1ae0bc92c3e6')
+  console.log('User IDs match:', user.id === '15c34ed5-11d6-4dd2-9661-1ae0bc92c3e6')
+  console.log('=== END DEBUG ===')
+
   // Create a map for quick lookup of member organizations
   const memberOrgMap = new Map(memberOrganizations.map(org => [org.id, org]))
 
   // Create a map for quick lookup of pending invitations, prioritizing the invitation info
   const invitationOrgMap = new Map()
+  console.log('Processing invitations...')
+  
   for (const inv of pendingInvitations) {
-    if (inv.organizations) {
-      invitationOrgMap.set(inv.organizations.id, {
-        id: inv.organizations.id,
-        name: inv.organizations.name,
-        created_at: inv.organizations.created_at,
+    console.log('Processing invitation:', inv)
+    let orgDetails = inv.organizations as any
+    console.log('inv.organizations:', orgDetails)
+
+    // Fallback: If join failed (e.g. RLS issue) but we have the org in memberOrganizations
+    if (!orgDetails && inv.org_id && memberOrgMap.has(inv.org_id)) {
+      console.log('Using fallback for org_id:', inv.org_id)
+      const memberOrg = memberOrgMap.get(inv.org_id)
+      if (memberOrg) {
+        orgDetails = {
+          id: memberOrg.id,
+          name: memberOrg.name,
+          created_at: memberOrg.created_at,
+        }
+        console.log('Fallback orgDetails:', orgDetails)
+      }
+    }
+
+    // Final fallback: Query organization directly by ID
+    if (!orgDetails && inv.org_id) {
+      console.log('Querying organization directly for org_id:', inv.org_id)
+      const { data: directOrg } = await supabase
+        .from('organizations')
+        .select('id, name, created_at')
+        .eq('id', inv.org_id)
+        .single()
+      
+      if (directOrg) {
+        orgDetails = directOrg
+        console.log('Direct query orgDetails:', orgDetails)
+      }
+    }
+
+    if (orgDetails) {
+      console.log('Adding to invitationOrgMap:', orgDetails.name)
+      invitationOrgMap.set(orgDetails.id, {
+        id: orgDetails.id,
+        name: orgDetails.name,
+        created_at: orgDetails.created_at,
         invitation: {
           invitationId: inv.id,
           expiresAt: inv.expires_at,
         },
       })
+    } else {
+      console.log('No orgDetails found for invitation:', inv.id)
     }
   }
 
@@ -107,16 +154,17 @@ export default async function OrganizationsPage() {
 
     if (invitationInfo) {
       // Find the role associated with the invitation from the member organizations
-      // This part might need adjustment if invitation doesn't directly carry role_id or if we need to fetch it separately
-      // For now, assuming memberOrgMap entry or similar would have role info if accepted
+      // Note: memberOrg may not have roles property, so we'll skip role assignment for now
+      // This can be enhanced later when role data is properly fetched
       const memberOrg = memberOrgMap.get(org.id)
-      if (memberOrg && memberOrg.roles && memberOrg.roles.length > 0) {
-        const primaryRole = rolesMap.get(memberOrg.roles[0].organization_role_id)
-        if (primaryRole) {
-          roleName = primaryRole.name
-          roleDescription = primaryRole.description
-        }
-      }
+      // TODO: Fetch role information properly when needed
+      // if (memberOrg && memberOrg.roles && memberOrg.roles.length > 0) {
+      //   const primaryRole = rolesMap.get(memberOrg.roles[0].organization_role_id)
+      //   if (primaryRole) {
+      //     roleName = primaryRole.name
+      //     roleDescription = primaryRole.description
+      //   }
+      // }
     }
 
     return {

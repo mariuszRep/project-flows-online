@@ -375,7 +375,7 @@ export class InvitationService {
         org_id,
         expires_at,
         status,
-        organizations!inner(id, name, created_at)
+        organizations(id, name, created_at)
       `)
       .eq('user_id', userId)
       .eq('status', 'pending')
