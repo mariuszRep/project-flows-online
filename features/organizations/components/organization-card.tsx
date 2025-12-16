@@ -41,6 +41,7 @@ export function OrganizationCard({
   roleName,
   roleDescription,
   expiresAt,
+  isMember,
   onCreate,
 }: OrganizationCardProps) {
   const router = useRouter()
