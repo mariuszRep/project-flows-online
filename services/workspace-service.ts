@@ -2,9 +2,26 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import type { Organization, Workspace } from '@/types/database'
 import type { CreateWorkspaceInput, UpdateWorkspaceInput } from '@/features/workspaces/validations'
+import { createClient } from '@/lib/supabase/server'
 
 export class WorkspaceService {
   constructor(private supabase: SupabaseClient) {}
+
+  static async getUserWorkspace(supabaseClient?: SupabaseClient): Promise<Workspace | null> {
+    const supabase = supabaseClient || await createClient()
+    // RLS handles access control - if data is returned, user has access
+    const { data, error } = await supabase
+      .from('workspaces')
+      .select('*')
+      .limit(1)
+      .maybeSingle()
+
+    if (error) {
+      return null
+    }
+
+    return data || null
+  }
 
   /**
    * Get organization by ID (for cache functions)

@@ -18,7 +18,7 @@ export default async function middleware(request: NextRequest) {
     !isDevelopment &&
     (pathname.startsWith('/login') ||
     pathname.startsWith('/onboarding') ||
-    pathname.startsWith('/auth/callback'))
+    pathname.startsWith('/api/auth/callback'))
   ) {
     const ip = getClientIp(request)
 
@@ -26,7 +26,7 @@ export default async function middleware(request: NextRequest) {
     const limits = {
       '/login': { name: 'auth-login', limit: 5, windowSeconds: 60 }, // 5 per minute
       '/onboarding': { name: 'auth-onboarding', limit: 5, windowSeconds: 60 }, // 5 per minute
-      '/auth/callback': { name: 'auth-callback', limit: 10, windowSeconds: 60 }, // 10 per minute
+      '/api/auth/callback': { name: 'auth-callback', limit: 10, windowSeconds: 60 }, // 10 per minute
     }
 
     // Find matching limit config

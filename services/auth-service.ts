@@ -7,6 +7,8 @@ import {
   passwordResetRequestSchema,
   passwordUpdateSchema,
 } from '@/features/auth/validations'
+import { OrganizationService } from './organization-service'
+import { WorkspaceService } from './workspace-service'
 
 /**
  * Auth Service - Business logic layer for authentication
@@ -99,7 +101,7 @@ export async function sendMagicLinkToEmail(email: string): Promise<AuthResult> {
   const { error } = await supabase.auth.signInWithOtp({
     email: validation.data.email,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`,
     },
   })
 
@@ -121,7 +123,7 @@ export async function signInWithOAuthProvider(
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`,
     },
   })
 
@@ -189,59 +191,54 @@ export async function updateUserPassword(
  * Determine post-authentication redirect path based on user state
  * Checks for pending invitations, onboarding status
  * Returns the appropriate redirect path
+ * @param supabaseClient - Optional Supabase client instance to use (avoids creating new client)
  */
-export async function getPostAuthRedirectPath(): Promise<string> {
-  const supabase = await createClient()
+export async function getPostAuthRedirectPath(supabaseClient?: Awaited<ReturnType<typeof createClient>>): Promise<string> {
+  const supabase = supabaseClient || await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[getPostAuthRedirectPath] User:', user ? `${user.email} (${user.id})` : 'NULL')
+  }
+
   if (!user) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[getPostAuthRedirectPath] No user found, redirecting to /login')
+    }
     return '/login'
   }
 
-  // Check for pending invitations first
-  const { data: pendingInvitation } = await supabase
-    .from('invitations')
-    .select('id, status, expires_at')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
+  // RLS ensures we only get organizations/workspaces/subscriptions the user has access to
+  // Pass the supabase client to ensure consistent session context
+  const organization = await OrganizationService.getUserOrganization(supabase)
+  const hasOrganization = !!organization?.id
+
+  // Check for active subscription via RLS - if data is returned, subscription is active
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('id')
     .limit(1)
     .maybeSingle()
+  const hasActiveSubscription = !!subscription?.id
 
-  if (pendingInvitation) {
-    const now = new Date()
-    const expiresAt = new Date(pendingInvitation.expires_at)
+  const workspace = await WorkspaceService.getUserWorkspace(supabase)
+  const hasWorkspace = !!workspace?.id
 
-    if (now <= expiresAt) {
-      // Redirect to organization list where invitation cards are displayed
-      return '/organizations'
-    } else {
-      // Mark as expired
-      await supabase
-        .from('invitations')
-        .update({ status: 'expired' })
-        .eq('id', pendingInvitation.id)
-    }
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[getPostAuthRedirectPath] hasOrganization:', hasOrganization, 'hasActiveSubscription:', hasActiveSubscription, 'hasWorkspace:', hasWorkspace)
   }
 
-  // Check if user has any organizations
-  const { data: orgs } = await supabase
-    .from('organizations')
-    .select('id')
-    .limit(1)
-    .maybeSingle()
-
-  // Check if user has any workspaces
-  const { data: workspaces } = await supabase
-    .from('workspaces')
-    .select('id')
-    .limit(1)
-    .maybeSingle()
-
-  // No org or workspace - needs onboarding
-  if (!orgs || !workspaces) {
+  // If any of the core requirements are missing, redirect to onboarding
+  if (!hasOrganization || !hasActiveSubscription || !hasWorkspace) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[getPostAuthRedirectPath] Missing requirements, redirecting to /onboarding')
+    }
     return '/onboarding'
   }
 
-  // Has orgs and workspaces - send to organizations list
+  // If all good, redirect to organizations list
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[getPostAuthRedirectPath] All requirements met, redirecting to /organizations')
+  }
   return '/organizations'
 }

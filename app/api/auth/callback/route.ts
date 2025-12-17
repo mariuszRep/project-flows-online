@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getPostAuthRedirectPath } from '@/services/auth-service'
 
 /**
  * Validates that a redirect path is safe (relative path only)
@@ -63,18 +64,30 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
     }
 
+    // Verify session was established
+    const { data: { user } } = await supabase.auth.getUser()
     if (process.env.NODE_ENV === 'development') {
-      console.log('[AUTH CALLBACK] Session exchange successful, redirecting to:', next)
+      console.log('[AUTH CALLBACK] User after exchange:', user ? `${user.email} (${user.id})` : 'NULL')
+    }
+
+    // Determine redirect path based on user state (onboarding status, etc.)
+    // If 'next' param was provided (e.g., from invitation), use it
+    // Otherwise, use the smart redirect logic
+    // Pass the supabase client to ensure it uses the session we just established
+    const redirectPath = nextParam ? next : await getPostAuthRedirectPath(supabase)
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AUTH CALLBACK] Session exchange successful, redirecting to:', redirectPath)
     }
     const forwardedHost = request.headers.get('x-forwarded-host')
     const isLocalEnv = process.env.NODE_ENV === 'development'
 
     if (isLocalEnv) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${redirectPath}`)
     } else if (forwardedHost) {
-      return NextResponse.redirect(`https://${forwardedHost}${next}`)
+      return NextResponse.redirect(`https://${forwardedHost}${redirectPath}`)
     } else {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${redirectPath}`)
     }
   }
 

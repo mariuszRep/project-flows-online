@@ -1,9 +1,26 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Organization } from '@/types/database'
 import type { CreateOrganizationInput, UpdateOrganizationInput } from '@/features/organizations/validations'
+import { createClient } from '@/lib/supabase/server'
 
 export class OrganizationService {
   constructor(private supabase: SupabaseClient) {}
+
+  static async getUserOrganization(supabaseClient?: SupabaseClient): Promise<Organization | null> {
+    const supabase = supabaseClient || await createClient()
+    // RLS handles access control - if data is returned, user has access
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .limit(1)
+      .maybeSingle()
+
+    if (error) {
+      return null
+    }
+
+    return data || null
+  }
 
   /**
    * Create a new organization using RPC function (bypasses RLS)

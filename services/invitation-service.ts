@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { sendOrganizationInvitationEmail } from '@/lib/email/send-organization-invitation'
 import {
   sendInvitationSchema,
   workspacePermissionSchema,
@@ -58,22 +57,6 @@ export class InvitationService {
     let userId: string = ''
     let isExistingUser = false
 
-    // Fetch organization and role details for email
-    const { data: organization } = await this.supabase
-      .from('organizations')
-      .select('name')
-      .eq('id', orgId)
-      .single()
-
-    const { data: role } = await this.supabase
-      .from('roles')
-      .select('name, description')
-      .eq('id', orgRoleId)
-      .single()
-
-    const { data: inviter } = await this.supabase.auth.admin.getUserById(inviterId)
-
-    // Step 1: Check if user already exists
     // Step 1: Check if user already exists
     // We use a secure RPC function to check for existing users by email (case-insensitive)
     const { data: rpcUser, error: rpcError } = await (this.supabase as any)
@@ -81,48 +64,40 @@ export class InvitationService {
       .single()
 
     if (rpcUser && rpcUser.id) {
-      // User already exists - generate magic link and send email
+      // User already exists - send magic link via Supabase's email system
       userId = rpcUser.id
       isExistingUser = true
 
-      // Generate magic link that redirects to the new organization
-      // Existing users should go to the organization page
-      const { data: magicLinkData, error: magicLinkError } = await this.supabase.auth.admin.generateLink({
-        type: 'magiclink',
+      // Use Supabase's built-in OTP/magic link email (similar to password reset)
+      // This will send through Supabase's email system (Mailpit in local dev)
+      const { error: otpError } = await this.supabase.auth.signInWithOtp({
         email: email,
         options: {
-          redirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/organizations/${orgId}`,
+          emailRedirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback?next=/organizations/${orgId}`,
         },
       })
 
-      if (magicLinkError || !magicLinkData?.properties?.action_link) {
-        console.error('Failed to generate magic link:', magicLinkError)
-      } else {
-        // Send email with magic link to existing user
-        await sendOrganizationInvitationEmail({
-          to: email,
-          organizationName: organization?.name || 'the organization',
-          inviterName: inviter?.user?.user_metadata?.name,
-          inviterEmail: inviter?.user?.email || 'unknown',
-          magicLink: magicLinkData.properties.action_link,
-          roleName: role?.name || 'member',
-          roleDescription: role?.description,
-        })
+      if (otpError) {
+        console.error('Failed to send magic link via Supabase:', otpError)
+        throw new Error(`Failed to send invitation email: ${otpError.message}`)
       }
     } else {
-      // User doesn't exist - create via invite (Supabase sends the email automatically)
+      // User doesn't exist - create account and send magic link
+      // We use createUser + signInWithOtp instead of inviteUserByEmail because:
+      // 1. inviteUserByEmail can have issues with redirect URLs in some envs (localhost)
+      // 2. We want a consistent "Magic Link" experience which we know works reliably
       try {
-        const { data: authData, error: authError } = await this.supabase.auth.admin.inviteUserByEmail(
+        const { data: authData, error: createError } = await this.supabase.auth.admin.createUser({
           email,
-          {
-            redirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/onboarding`,
+          email_confirm: true, // Auto-confirm so they can sign in properly via magic link
+          user_metadata: {
+            invited_by: inviterId,
           }
-        )
+        })
 
-        if (authError) {
+        if (createError) {
           // If error is "User already registered", treat as existing user
-          // This is a fallback in case the public.users check failed for some reason
-          if (authError.message.includes('already been registered') || authError.status === 422) {
+          if (createError.message.includes('already been registered') || createError.status === 422) {
             // We need to find the user ID. Since public.users check failed, we try listUsers as last resort
             // or just fail if we can't find them.
             const { data: existingUsers } = await this.supabase.auth.admin.listUsers()
@@ -132,36 +107,43 @@ export class InvitationService {
               userId = foundUser.id
               isExistingUser = true
 
-              // Re-run the magic link logic for existing user
-              const { data: magicLinkData, error: magicLinkError } = await this.supabase.auth.admin.generateLink({
-                type: 'magiclink',
+              // Use Supabase's built-in OTP/magic link email
+              const { error: otpError } = await this.supabase.auth.signInWithOtp({
                 email: email,
                 options: {
-                  redirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || ''}/auth/callback?next=/organizations/${orgId}`,
+                  emailRedirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/auth/callback?next=/organizations/${orgId}`,
                 },
               })
 
-              if (!magicLinkError && magicLinkData?.properties?.action_link) {
-                await sendOrganizationInvitationEmail({
-                  to: email,
-                  organizationName: organization?.name || 'the organization',
-                  inviterName: inviter?.user?.user_metadata?.name,
-                  inviterEmail: inviter?.user?.email || 'unknown',
-                  magicLink: magicLinkData.properties.action_link,
-                  roleName: role?.name || 'member',
-                  roleDescription: role?.description,
-                })
+              if (otpError) {
+                console.error('Failed to send magic link via Supabase:', otpError)
+                // Don't throw here, we've already set isExistingUser and userId
               }
             } else {
-              throw authError
+              throw createError
             }
           } else {
-            throw new Error(`Failed to invite user: ${authError.message}`)
+            throw new Error(`Failed to create user: ${createError.message}`)
           }
         } else if (!authData?.user?.id) {
           throw new Error('Failed to create user account')
         } else {
           userId = authData.user.id
+
+          // Now send the magic link to the newly created user
+          const { error: otpError } = await this.supabase.auth.signInWithOtp({
+            email: email,
+            options: {
+              // Ensure we use the full site URL for the redirect
+              emailRedirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback?next=/organizations/${orgId}`,
+            },
+          })
+
+          if (otpError) {
+            console.error('Failed to send magic link to new user:', otpError)
+            // We created the user but failed to email them. We should probably throw
+            throw new Error(`Failed to send invitation email: ${otpError.message}`)
+          }
         }
       } catch (error) {
         // Re-throw if it's not handled above

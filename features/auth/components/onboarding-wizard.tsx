@@ -26,7 +26,6 @@ import {
   createOrganizationWithPermissions,
   createWorkspaceWithPermissions,
 } from '@/features/auth/onboarding-actions'
-import { OnboardingProgressService } from '@/services/onboarding-progress-service'
 
 type OnboardingStep = 'signup' | 'verify-email' | 'create-organization' | 'payment' | 'create-workspace'
 
@@ -73,30 +72,6 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user) {
-        // Load from database if authenticated
-        try {
-          const service = new OnboardingProgressService(supabase)
-          const progress = await service.getOnboardingProgress()
-
-          if (progress) {
-            // Restore state from database
-            if (progress.organization_id) setOrganizationId(progress.organization_id)
-            // Also save to session storage for consistency (selected_plan_id contains Stripe priceId)
-            if (progress.selected_plan_id) sessionStorage.setItem('onboarding_price_id', progress.selected_plan_id)
-            if (progress.selected_plan_name) sessionStorage.setItem('onboarding_plan_name', progress.selected_plan_name)
-            if (progress.selected_plan_interval) sessionStorage.setItem('onboarding_interval', progress.selected_plan_interval)
-            if (progress.organization_id) sessionStorage.setItem('onboarding_org_id', progress.organization_id)
-
-            // If we're on create-organization step but org already exists, skip to payment
-            if (currentStep === 'create-organization' && progress.organization_id) {
-              console.log('Organization already exists, skipping to payment')
-              setCurrentStep('payment')
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load onboarding progress from database:', error)
-        }
-
         // Check if organization already exists in database
         if (currentStep === 'create-organization') {
           const { data: existingOrg } = await supabase
@@ -137,21 +112,6 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
 
         if (user?.email_confirmed_at) {
           toast.success('Email verified!')
-
-          // Save progress to database
-          try {
-            const service = new OnboardingProgressService(supabase)
-            await service.upsertOnboardingProgress({
-              wizard_step: 3, // create-organization step
-              selected_plan_id: sessionStorage.getItem('onboarding_price_id'), // Store Stripe priceId
-              selected_plan_name: sessionStorage.getItem('onboarding_plan_name'),
-              selected_plan_interval: sessionStorage.getItem('onboarding_interval'),
-              email_verified: true,
-            })
-          } catch (dbError) {
-            console.error('Failed to save email verification to database:', dbError)
-          }
-
           setCurrentStep('create-organization')
           clearInterval(interval)
         }
@@ -164,25 +124,6 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
   // Handle signup success
   const handleSignupSuccess = async () => {
     setCurrentStep('verify-email')
-
-    // Save initial progress to database
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const service = new OnboardingProgressService(supabase)
-        await service.upsertOnboardingProgress({
-          wizard_step: 2, // verify-email step
-          selected_plan_id: sessionStorage.getItem('onboarding_price_id'), // Store Stripe priceId
-          selected_plan_name: sessionStorage.getItem('onboarding_plan_name'),
-          selected_plan_interval: sessionStorage.getItem('onboarding_interval'),
-          email_verified: false,
-        })
-      }
-    } catch (dbError) {
-      console.error('Failed to save initial progress to database:', dbError)
-      // Don't block the flow if database save fails
-    }
   }
 
   // Resend verification email
@@ -239,26 +180,6 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
         sessionStorage.setItem('onboarding_org_id', result.data.id)
         sessionStorage.setItem('onboarding_org_name', result.data.name)
 
-        // Save progress to database
-        try {
-          const supabase = createClient()
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            const service = new OnboardingProgressService(supabase)
-            await service.upsertOnboardingProgress({
-              wizard_step: 4, // payment step
-              selected_plan_id: sessionStorage.getItem('onboarding_price_id'), // Store Stripe priceId
-              selected_plan_name: sessionStorage.getItem('onboarding_plan_name'),
-              selected_plan_interval: sessionStorage.getItem('onboarding_interval'),
-              organization_id: result.data.id,
-              email_verified: !!user.email_confirmed_at,
-            })
-          }
-        } catch (dbError) {
-          console.error('Failed to save progress to database:', dbError)
-          // Don't block the flow if database save fails
-        }
-
         toast.success('Organization created!', {
           description: `${result.data.name} is ready`,
         })
@@ -282,23 +203,7 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
     let savedPriceId = priceId
     let savedOrgId = organizationId
 
-    // Load from database if authenticated
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const service = new OnboardingProgressService(supabase)
-        const progress = await service.getOnboardingProgress()
-        if (progress) {
-          savedPriceId = progress.selected_plan_id || savedPriceId
-          savedOrgId = progress.organization_id || savedOrgId
-        }
-      }
-    } catch (dbError) {
-      console.error('Failed to load from database, falling back to session storage:', dbError)
-    }
-
-    // Fallback to session storage
+    // Load from session storage
     savedPriceId = savedPriceId || sessionStorage.getItem('onboarding_price_id')
     savedOrgId = savedOrgId || sessionStorage.getItem('onboarding_org_id')
 
@@ -373,16 +278,6 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
           description: `${result.data.name} is ready to use`,
         })
 
-        // Delete onboarding progress from database (onboarding complete)
-        try {
-          const supabase = createClient()
-          const service = new OnboardingProgressService(supabase)
-          await service.deleteOnboardingProgress()
-        } catch (dbError) {
-          console.error('Failed to delete onboarding progress from database:', dbError)
-          // Don't block the flow if database cleanup fails
-        }
-
         // Clear session storage
         sessionStorage.removeItem('onboarding_email')
         sessionStorage.removeItem('onboarding_org_name')
@@ -393,8 +288,8 @@ export function OnboardingWizard({ initialStep = 'signup', userEmail = '' }: Onb
         sessionStorage.removeItem('onboarding_interval')
         sessionStorage.removeItem('onboarding_price_id')
 
-        // Redirect to organizations list
-        router.push('/organizations')
+        // Redirect to the newly created workspace
+        router.push(`/organizations/${organizationId}/workspaces/${result.data.id}`)
       } else {
         toast.error('Failed to create workspace', {
           description: result.error || 'An unexpected error occurred',
