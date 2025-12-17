@@ -53,8 +53,11 @@ export async function GET(request: Request) {
     )
   }
 
+  // Create Supabase client
+  const supabase = await createClient()
+
+  // Handle OAuth code exchange flow
   if (code) {
-    const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
@@ -64,36 +67,44 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
     }
 
-    // Verify session was established
-    const { data: { user } } = await supabase.auth.getUser()
     if (process.env.NODE_ENV === 'development') {
-      console.log('[AUTH CALLBACK] User after exchange:', user ? `${user.email} (${user.id})` : 'NULL')
-    }
-
-    // Determine redirect path based on user state (onboarding status, etc.)
-    // If 'next' param was provided (e.g., from invitation), use it
-    // Otherwise, use the smart redirect logic
-    // Pass the supabase client to ensure it uses the session we just established
-    const redirectPath = nextParam ? next : await getPostAuthRedirectPath(supabase)
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[AUTH CALLBACK] Session exchange successful, redirecting to:', redirectPath)
-    }
-    const forwardedHost = request.headers.get('x-forwarded-host')
-    const isLocalEnv = process.env.NODE_ENV === 'development'
-
-    if (isLocalEnv) {
-      return NextResponse.redirect(`${origin}${redirectPath}`)
-    } else if (forwardedHost) {
-      return NextResponse.redirect(`https://${forwardedHost}${redirectPath}`)
-    } else {
-      return NextResponse.redirect(`${origin}${redirectPath}`)
+      console.log('[AUTH CALLBACK] OAuth code exchange successful')
     }
   }
 
-  // return the user to an error page with instructions
+  // Check if we have a valid session (either from code exchange or PKCE flow from magic links)
+  const { data: { user } } = await supabase.auth.getUser()
+
   if (process.env.NODE_ENV === 'development') {
-    console.log('[AUTH CALLBACK] No code provided')
+    console.log('[AUTH CALLBACK] User:', user ? `${user.email} (${user.id})` : 'NULL')
   }
-  return NextResponse.redirect(`${origin}/login?error=Could not authenticate user`)
+
+  if (!user) {
+    // No session established
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AUTH CALLBACK] No user session found')
+    }
+    return NextResponse.redirect(`${origin}/login?error=Could not authenticate user`)
+  }
+
+  // Determine redirect path based on user state (onboarding status, etc.)
+  // If 'next' param was provided (e.g., from invitation), use it
+  // Otherwise, use the smart redirect logic
+  // Pass the supabase client to ensure it uses the session we just established
+  const redirectPath = nextParam ? next : await getPostAuthRedirectPath(supabase)
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[AUTH CALLBACK] Authentication successful, redirecting to:', redirectPath)
+  }
+
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const isLocalEnv = process.env.NODE_ENV === 'development'
+
+  if (isLocalEnv) {
+    return NextResponse.redirect(`${origin}${redirectPath}`)
+  } else if (forwardedHost) {
+    return NextResponse.redirect(`https://${forwardedHost}${redirectPath}`)
+  } else {
+    return NextResponse.redirect(`${origin}${redirectPath}`)
+  }
 }
