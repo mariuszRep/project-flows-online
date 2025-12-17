@@ -168,7 +168,7 @@ export class PermissionsService {
     error?: string
   }> {
     try {
-      const { data, error } = await this.supabase
+      let query = this.supabase
         .from('permissions')
         .select('id')
         .eq('org_id', params.org_id)
@@ -176,9 +176,16 @@ export class PermissionsService {
         .eq('principal_id', params.principal_id)
         .eq('role_id', params.role_id)
         .eq('object_type', params.object_type)
-        .eq('object_id', params.object_id)
         .is('deleted_at', null)
-        .maybeSingle()
+
+      // Use .is() for null values, .eq() for non-null values
+      if (params.object_id === null) {
+        query = query.is('object_id', null)
+      } else {
+        query = query.eq('object_id', params.object_id)
+      }
+
+      const { data, error } = await query.maybeSingle()
 
       if (error) {
         console.error('Error checking duplicate permission:', error)
@@ -325,10 +332,12 @@ export class PermissionsService {
         if (users) {
           userDetails = users.reduce(
             (acc, u) => {
-              const metadata = u.raw_user_meta_data as any
-              acc[u.id] = {
-                email: u.email,
-                name: metadata?.name || metadata?.full_name,
+              if (u.id) {
+                const metadata = u.raw_user_meta_data as any
+                acc[u.id] = {
+                  email: u.email,
+                  name: metadata?.name || metadata?.full_name,
+                }
               }
               return acc
             },
@@ -398,10 +407,12 @@ export class PermissionsService {
         if (users) {
           userDetails = users.reduce(
             (acc, u) => {
-              const metadata = u.raw_user_meta_data as any
-              acc[u.id] = {
-                email: u.email,
-                name: metadata?.name || metadata?.full_name,
+              if (u.id) {
+                const metadata = u.raw_user_meta_data as any
+                acc[u.id] = {
+                  email: u.email,
+                  name: metadata?.name || metadata?.full_name,
+                }
               }
               return acc
             },
@@ -476,10 +487,12 @@ export class PermissionsService {
       if (users) {
         userDetailsMap = users.reduce(
           (acc, u) => {
-            const metadata = u.raw_user_meta_data as any
-            acc[u.id] = {
-              email: u.email,
-              name: metadata?.name || metadata?.full_name,
+            if (u.id) {
+              const metadata = u.raw_user_meta_data as any
+              acc[u.id] = {
+                email: u.email,
+                name: metadata?.name || metadata?.full_name,
+              }
             }
             return acc
           },
