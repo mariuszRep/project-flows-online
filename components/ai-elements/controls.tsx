@@ -9,10 +9,14 @@ export type ControlsProps = ComponentProps<typeof ControlsPrimitive>;
 export const Controls = ({ className, ...props }: ControlsProps) => (
   <ControlsPrimitive
     className={cn(
-      "gap-px overflow-hidden rounded-md border bg-card p-1 shadow-none!",
-      "[&>button]:rounded-md [&>button]:border-none! [&>button]:bg-transparent! [&>button]:hover:bg-secondary!",
+      "gap-1 overflow-hidden rounded-lg border bg-card p-2 shadow-xl z-[1000]",
+      "[&>button]:rounded-md [&>button]:border-2 [&>button]:border-border [&>button]:bg-card [&>button]:hover:bg-accent [&>button]:text-foreground",
+      "[&>button]:h-8 [&>button]:w-8 [&>button]:p-0 [&>button]:transition-colors",
       className
     )}
+    showZoom={true}
+    showFitView={true}
+    showInteractive={false}
     {...props}
   />
 );

@@ -18,9 +18,12 @@ export const Canvas = ({ children, ...props }: CanvasProps) => (
     panOnScroll
     selectionOnDrag={true}
     zoomOnDoubleClick={false}
+    minZoom={0.1}
+    maxZoom={2}
+    preventScrolling={true}
     {...props}
   >
-    <Background bgColor="var(--sidebar)" />
+    <Background bgColor="var(--sidebar)" gap={16} size={1} />
     {children}
   </ReactFlow>
 );

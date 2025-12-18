@@ -10,7 +10,7 @@ interface WorkflowPageLayoutProps {
 
 export function WorkflowPageLayout({ workflowId }: WorkflowPageLayoutProps) {
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col overflow-hidden">
       <WorkflowToolbar
         onSave={() => console.log('Save')}
         onPublish={() => console.log('Publish')}
@@ -19,9 +19,9 @@ export function WorkflowPageLayout({ workflowId }: WorkflowPageLayoutProps) {
         onExport={() => console.log('Export')}
         onImport={() => console.log('Import')}
       />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <NodePalette />
-        <div className="flex-1">
+        <div className="flex-1 min-h-0">
           <WorkflowBuilder workflowId={workflowId} />
         </div>
       </div>

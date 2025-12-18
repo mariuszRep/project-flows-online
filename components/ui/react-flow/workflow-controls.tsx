@@ -35,12 +35,13 @@ export function WorkflowControls({
   return (
     <Controls
       className={cn(
-        'bg-card text-card-foreground rounded-md border shadow-sm',
-        '[&>button]:border-none [&>button]:bg-transparent [&>button]:text-foreground',
+        'bg-card text-card-foreground rounded-lg border-2 border-border shadow-xl z-[1000]',
+        '[&>button]:border-none [&>button]:bg-card [&>button]:text-foreground [&>button]:border-border',
         '[&>button:hover]:bg-accent [&>button:hover]:text-accent-foreground',
+        '[&>button]:h-8 [&>button]:w-8 [&>button]:m-1',
         props.className,
       )}
-      position={props.position || 'bottom-right'}
+      position={props.position || 'bottom-left'}
       showInteractive={false}
       {...props}
     >

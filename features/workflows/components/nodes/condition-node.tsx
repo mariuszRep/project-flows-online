@@ -1,7 +1,7 @@
 'use client'
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle } from '@/components/ui/react-flow/base-node'
+import { Node, NodeHeader, NodeTitle, NodeContent } from '@/components/ai-elements/node'
 import { Badge } from '@/components/ui/badge'
 import { GitBranch } from 'lucide-react'
 import type { WorkflowNode } from '@/types/workflow'
@@ -17,30 +17,29 @@ export function ConditionNode({ data }: NodeProps<WorkflowNode>) {
   const nodeData = data as unknown as ConditionNodeData
 
   return (
-    <BaseNode className="w-64 border-yellow-500">
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!bg-yellow-500 !border-yellow-600"
-      />
-
-      <BaseNodeHeader>
-        <div className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-yellow-500" />
-          <BaseNodeHeaderTitle>{nodeData.label}</BaseNodeHeaderTitle>
+    <Node 
+      handles={{ target: true, source: true }}
+      className="w-64 border-yellow-500"
+    >
+      <NodeHeader>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-yellow-500" />
+            <NodeTitle>{nodeData.label}</NodeTitle>
+          </div>
+          <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-500">
+            Condition
+          </Badge>
         </div>
-        <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-500">
-          Condition
-        </Badge>
-      </BaseNodeHeader>
+      </NodeHeader>
 
       {nodeData.condition && (
-        <BaseNodeContent>
+        <NodeContent>
           <div className="text-sm">
             <span className="text-muted-foreground">If: </span>
             <span className="font-medium">{nodeData.condition}</span>
           </div>
-        </BaseNodeContent>
+        </NodeContent>
       )}
 
       <div className="relative">
@@ -57,6 +56,6 @@ export function ConditionNode({ data }: NodeProps<WorkflowNode>) {
           className="!bg-red-500 !border-red-600 !-right-4"
         />
       </div>
-    </BaseNode>
+    </Node>
   )
 }
