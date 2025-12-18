@@ -1,7 +1,7 @@
 import React, { type ReactNode, type ComponentProps } from "react";
 import { Panel, type NodeProps, type PanelPosition } from "@xyflow/react";
 
-import { Node } from "@/components/ai-elements/node";
+import { BaseNode } from "@/components/ui/react-flow/base-node";
 import { cn } from "@/lib/utils";
 
 /* GROUP NODE Label ------------------------------------------------------- */
@@ -55,8 +55,7 @@ export function GroupNode({ label, position, ...props }: GroupNodeProps) {
   };
 
   return (
-    <Node
-      handles={{ target: false, source: false }}
+    <BaseNode
       className="bg-opacity-50 h-full overflow-hidden rounded-sm bg-white"
       {...props}
     >
@@ -67,6 +66,6 @@ export function GroupNode({ label, position, ...props }: GroupNodeProps) {
           </GroupNodeLabel>
         )}
       </Panel>
-    </Node>
+    </BaseNode>
   );
 }

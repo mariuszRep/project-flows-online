@@ -2,6 +2,8 @@
 
 import React, { useCallback } from 'react'
 import {
+  ReactFlow,
+  Background,
   Panel,
   MiniMap,
   applyNodeChanges,
@@ -13,9 +15,7 @@ import {
   type NodeChange,
   type EdgeChange,
 } from '@xyflow/react'
-import { Canvas } from '@/components/ai-elements/canvas'
-import { Controls } from '@/components/ai-elements/controls'
-import { Edge } from '@/components/ai-elements/edge'
+import '@xyflow/react/dist/style.css'
 
 import { useWorkflowFlow } from '@/hooks/use-workflow-flow'
 import { WorkflowControls } from '@/components/ui/react-flow/workflow-controls'
@@ -33,8 +33,7 @@ const nodeTypes: NodeTypes = {
 }
 
 const edgeTypes: EdgeTypes = {
-  animated: Edge.Animated,
-  temporary: Edge.Temporary,
+  // Add custom edge types here if needed
 }
 
 interface WorkflowBuilderProps {
@@ -124,17 +123,17 @@ export function WorkflowBuilder({ workflowId, readOnly = false }: WorkflowBuilde
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex h-screen w-full">
       {/* Node Palette Sidebar */}
       {!readOnly && (
-        <div className="w-80 flex-shrink-0 border-r bg-muted/30 overflow-y-auto">
+        <div className="w-80 flex-shrink-0 border-r bg-muted/30">
           <NodePalette />
         </div>
       )}
       
       {/* Main Canvas */}
-      <div className="flex-1 min-h-0 relative">
-        <Canvas
+      <div className="flex-1 min-h-0">
+        <ReactFlow
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
@@ -145,24 +144,29 @@ export function WorkflowBuilder({ workflowId, readOnly = false }: WorkflowBuilde
           onViewportChange={onViewportChange}
           defaultViewport={viewport}
           fitView
-          fitViewOptions={{ padding: 0.1 }}
+          fitViewOptions={{ padding: 0.2 }}
           nodesDraggable={!readOnly}
           nodesConnectable={!readOnly}
           elementsSelectable={!readOnly}
           className="bg-background"
           style={{ width: '100%', height: '100%' }}
         >
-          <MiniMap
-            position="top-right"
-            className="!bg-card !border-2 !border-border shadow-lg !m-4"
+          <Background
+            className="bg-muted"
+            gap={16}
+            size={1}
           />
 
           {!readOnly && (
             <WorkflowControls />
           )}
 
-          <Panel position="top-left" className="!m-4 z-50">
-            <div className="rounded-lg border-2 border-border bg-card px-4 py-2 shadow-lg">
+          <MiniMap
+            position="bottom-left"
+          />
+
+          <Panel position="top-left" className="!m-2">
+            <div className="rounded-md border bg-card px-4 py-2 shadow-sm">
               <div className="font-semibold">{workflow?.name || 'Untitled Workflow'}</div>
               {workflow?.description && (
                 <div className="mt-1 text-sm text-muted-foreground">
@@ -173,13 +177,13 @@ export function WorkflowBuilder({ workflowId, readOnly = false }: WorkflowBuilde
           </Panel>
 
           {readOnly && (
-            <Panel position="bottom-left" className="!m-4 z-50">
-              <div className="rounded-lg border-2 border-border bg-muted px-3 py-1 text-sm font-medium shadow-lg">
+            <Panel position="top-right" className="!m-2">
+              <div className="rounded-md border bg-muted px-3 py-1 text-sm font-medium">
                 Read Only
               </div>
             </Panel>
           )}
-        </Canvas>
+        </ReactFlow>
       </div>
     </div>
   )
