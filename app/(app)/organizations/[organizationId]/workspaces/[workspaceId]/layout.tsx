@@ -23,6 +23,7 @@ export default async function WorkspaceLayout({
 
   // Validate UUID formats
   if (!UUID_REGEX.test(organizationId) || !UUID_REGEX.test(workspaceId)) {
+    console.log('[WorkspaceLayout] Invalid UUID(s):', { organizationId, workspaceId })
     notFound()
   }
 
@@ -35,7 +36,9 @@ export default async function WorkspaceLayout({
   }
 
   // Fetch organization and workspace data
+  console.log('[WorkspaceLayout] Fetching org:', organizationId)
   const organization = await getOrganization(organizationId)
+  console.log('[WorkspaceLayout] Fetching workspace:', workspaceId)
   const workspace = await getWorkspace(workspaceId, organizationId)
 
   return (

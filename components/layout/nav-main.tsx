@@ -26,9 +26,11 @@ export function NavMain({
     url: string
     icon?: LucideIcon
     isActive?: boolean
+    onClick?: (e: React.MouseEvent) => void
     items?: {
       title: string
       url: string
+      onClick?: (e: React.MouseEvent) => void
     }[]
   }[]
 }) {
@@ -55,10 +57,17 @@ export function NavMain({
                 <SidebarMenuSub>
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
-                      <SidebarMenuSubButton asChild>
-                        <a href={subItem.url}>
+                      <SidebarMenuSubButton 
+                        onClick={subItem.onClick}
+                        className={subItem.onClick ? "cursor-pointer" : ""}
+                      >
+                        {subItem.onClick ? (
                           <span>{subItem.title}</span>
-                        </a>
+                        ) : (
+                          <a href={subItem.url} className="block w-full">
+                            <span>{subItem.title}</span>
+                          </a>
+                        )}
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}

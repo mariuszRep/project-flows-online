@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SidebarLayout } from '@/components/layout/sidebar-layout'
 import { WorkspaceSidebar, type WorkspaceSection } from '@/features/workspaces/components/workspace-sidebar'
+import { WorkflowsView } from '@/features/workflows/components/workflows-view'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -68,6 +69,16 @@ export function WorkspaceClient({ workspace, organizationName }: WorkspaceClient
   }
 
   const renderContent = () => {
+    // Render workflows section
+    if (activeSection === 'workflows') {
+      return (
+        <WorkflowsView
+          organizationId={workspace.organization_id}
+        />
+      )
+    }
+
+    // Default placeholder for other sections
     return (
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="grid auto-rows-min gap-4 md:grid-cols-3">

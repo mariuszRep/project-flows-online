@@ -6,6 +6,7 @@ import {
   Bot,
   Folder,
   Frame,
+  GitBranch,
   Map,
   PieChart,
   Settings2,
@@ -66,6 +67,25 @@ const data = {
         },
         {
           title: "Quantum",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Workflows",
+      url: "#",
+      icon: GitBranch,
+      items: [
+        {
+          title: "All Workflows",
+          url: "#",
+        },
+        {
+          title: "Create New",
+          url: "#",
+        },
+        {
+          title: "Templates",
           url: "#",
         },
       ],
@@ -136,7 +156,7 @@ const data = {
   ],
 }
 
-export type WorkspaceSection = 'playground' | 'models' | 'documentation' | 'settings'
+export type WorkspaceSection = 'playground' | 'models' | 'documentation' | 'settings' | 'workflows'
 
 interface WorkspaceSidebarProps extends React.ComponentProps<typeof Sidebar> {
   activeSection?: WorkspaceSection
@@ -170,9 +190,24 @@ export function WorkspaceSidebar({ activeSection, onSectionChange, ...props }: W
         ...subItem,
         url: '#', // Ensure they don't navigate away for now
         onClick: (e: React.MouseEvent) => {
-          if (onSectionChange) {
-             e.preventDefault()
-             onSectionChange(sectionName)
+          e.preventDefault()
+
+          // Special handling for Workflows items
+          if (item.title === 'Workflows') {
+            if (subItem.title === 'All Workflows') {
+              if (organizationId) {
+                router.push(`/organizations/${organizationId}/workflows`)
+              }
+            } else if (subItem.title === 'Create New') {
+              if (organizationId) {
+                router.push(`/organizations/${organizationId}/workflows/create`)
+              }
+            }
+          } else {
+            // Default behavior: just change section
+            if (onSectionChange) {
+              onSectionChange(sectionName)
+            }
           }
         }
       }))
