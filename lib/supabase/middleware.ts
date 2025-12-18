@@ -37,15 +37,28 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/forgot-password') &&
-    !request.nextUrl.pathname.startsWith('/auth') &&
-    !request.nextUrl.pathname.startsWith('/api/auth') &&
-    !request.nextUrl.pathname.startsWith('/onboarding') &&
-    request.nextUrl.pathname !== '/'
-  ) {
+  // Define public routes that don't require authentication
+  const publicRoutes = [
+    '/',
+    '/login',
+    '/forgot-password',
+    '/auth',
+    '/api/auth',
+    '/onboarding',
+    '/contact',
+    '/about',
+    '/plans',
+    '/pricing',
+    '/features',
+    '/docs',
+    '/faq',
+  ]
+
+  const isPublicRoute = publicRoutes.some(route =>
+    request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route + '/')
+  )
+
+  if (!user && !isPublicRoute) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'

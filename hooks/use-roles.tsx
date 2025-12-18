@@ -60,7 +60,7 @@ export function useRoles({ organizationId }: UseRolesProps = {}): UseRolesReturn
       setLoading(true)
       setError(null)
 
-      const rolesResult = await getAllRoles()
+      const rolesResult = await getAllRoles(organizationId)
       if (rolesResult.success && rolesResult.roles) {
         setRoles(rolesResult.roles)
       } else {

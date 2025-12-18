@@ -68,21 +68,23 @@ export async function updateRole(id: string, data: UpdateRoleInput): Promise<{
       return { success: false, error: 'Unauthorized' }
     }
 
-    // Get role org_id for path revalidation
-    const { data: role } = await supabase
-      .from('roles')
-      .select('org_id')
-      .eq('id', id)
-      .is('deleted_at', null)
-      .single()
-
     // Update role - RLS handles authorization
     const roleService = new RoleService(supabase)
+    const existingRole = await roleService.getRoleById(id)
+
+    if (!existingRole.success) {
+      return { success: false, error: handleRLSError(existingRole.error) }
+    }
+
+    if (!existingRole.role) {
+      return { success: false, error: 'Role not found' }
+    }
+
     const result = await roleService.updateRole(id, data)
 
-    if (result.success && role?.org_id) {
+    if (result.success && existingRole.role.org_id) {
       revalidatePath('/settings')
-      revalidatePath(`/organizations/${role.org_id}`)
+      revalidatePath(`/organizations/${existingRole.role.org_id}`)
       return result
     }
 
@@ -115,37 +117,33 @@ export async function deleteRole(id: string): Promise<{
       return { success: false, error: 'Unauthorized' }
     }
 
-    // Get role org_id for path revalidation
-    const { data: role } = await supabase
-      .from('roles')
-      .select('org_id')
-      .eq('id', id)
-      .is('deleted_at', null)
-      .single()
+    // Delete role - RLS handles authorization
+    const roleService = new RoleService(supabase)
+    const existingRole = await roleService.getRoleById(id)
 
-    // Check if role is in use (business logic constraint, not authorization)
-    const { data: permissionsCheck, error: checkError } = await supabase
-      .from('permissions')
-      .select('id')
-      .eq('role_id', id)
-      .is('deleted_at', null)
-      .limit(1)
-
-    if (checkError) {
-      return { success: false, error: handleRLSError(checkError) }
+    if (!existingRole.success) {
+      return { success: false, error: handleRLSError(existingRole.error) }
     }
 
-    if (permissionsCheck && permissionsCheck.length > 0) {
+    if (!existingRole.role) {
+      return { success: false, error: 'Role not found' }
+    }
+
+    const inUseResult = await roleService.isRoleInUse(id)
+
+    if (!inUseResult.success) {
+      return { success: false, error: handleRLSError(inUseResult.error) }
+    }
+
+    if (inUseResult.inUse) {
       return { success: false, error: 'Cannot delete role that is currently assigned to users' }
     }
 
-    // Delete role - RLS handles authorization
-    const roleService = new RoleService(supabase)
     const result = await roleService.deleteRole(id)
 
-    if (result.success && role?.org_id) {
+    if (result.success && result.orgId) {
       revalidatePath('/settings')
-      revalidatePath(`/organizations/${role.org_id}`)
+      revalidatePath(`/organizations/${result.orgId}`)
       return result
     }
 

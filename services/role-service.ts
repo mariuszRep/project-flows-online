@@ -12,6 +12,71 @@ export class RoleService {
   constructor(private readonly supabase: SupabaseClient<Database>) {}
 
   /**
+   * Fetch a role by ID
+   * @param id - Role ID
+   * @returns Success result with role or null when not found
+   */
+  async getRoleById(id: string): Promise<{
+    success: boolean
+    role?: Role | null
+    error?: string
+  }> {
+    try {
+      const { data: role, error } = await this.supabase
+        .from('roles')
+        .select('*')
+        .eq('id', id)
+        .is('deleted_at', null)
+        .maybeSingle()
+
+      if (error) {
+        console.error('Error fetching role:', error)
+        return { success: false, error: error.message }
+      }
+
+      return { success: true, role: (role as Role) ?? null }
+    } catch (error) {
+      console.error('Error fetching role:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Check if a role is currently assigned to any permissions
+   * @param id - Role ID
+   * @returns Success result with inUse flag or error
+   */
+  async isRoleInUse(id: string): Promise<{
+    success: boolean
+    inUse?: boolean
+    error?: string
+  }> {
+    try {
+      const { count, error } = await this.supabase
+        .from('permissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('role_id', id)
+        .is('deleted_at', null)
+
+      if (error) {
+        console.error('Error checking role usage:', error)
+        return { success: false, error: error.message }
+      }
+
+      return { success: true, inUse: (count ?? 0) > 0 }
+    } catch (error) {
+      console.error('Error checking role usage:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
    * Create a new role
    * @param data - Role creation input
    * @returns Success result with created role or error
@@ -98,21 +163,28 @@ export class RoleService {
    */
   async deleteRole(id: string): Promise<{
     success: boolean
+    orgId?: string
     error?: string
   }> {
     try {
-      const { error } = await this.supabase
+      const { data: role, error } = await this.supabase
         .from('roles')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', id)
         .is('deleted_at', null)
+        .select('org_id')
+        .maybeSingle()
 
       if (error) {
         console.error('Error deleting role:', error)
         return { success: false, error: error.message }
       }
 
-      return { success: true }
+      if (!role) {
+        return { success: false, error: 'Role not found or already deleted' }
+      }
+
+      return { success: true, orgId: role.org_id ?? undefined }
     } catch (error) {
       console.error('Error deleting role:', error)
       return {
