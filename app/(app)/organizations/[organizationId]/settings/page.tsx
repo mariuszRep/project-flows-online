@@ -6,5 +6,5 @@ interface SettingsPageProps {
 
 export default async function SettingsPage({ params }: SettingsPageProps) {
   const { organizationId } = await params
-  redirect(`/organizations/${organizationId}/settings/general/profile`)
+  redirect(`/organizations/${organizationId}/settings/general`)
 }

@@ -1,28 +1,16 @@
-import { WorkspaceClient } from '@/features/workspaces/components/workspace-client'
-import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-
-export default async function Page({ params }: { params: Promise<{ organizationId: string; workspaceId: string }> }) {
-  const { organizationId, workspaceId } = await params
-  const supabase = await createClient()
-
-  const { data: workspace } = await supabase
-    .from('workspaces')
-    .select('*, organizations(name)')
-    .eq('id', workspaceId)
-    .single()
-
-  if (!workspace) {
-    notFound()
-  }
-
-  // Cast the organization join result safely
-  const organizationName = (workspace.organizations as unknown as { name: string })?.name || 'Organization'
-
+export default async function WorkspaceOverviewPage() {
   return (
-    <WorkspaceClient 
-      workspace={workspace} 
-      organizationName={organizationName}
-    />
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+        <div className="bg-muted/50 aspect-video rounded-xl" />
+        <div className="bg-muted/50 aspect-video rounded-xl" />
+        <div className="bg-muted/50 aspect-video rounded-xl" />
+      </div>
+      <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min">
+        <div className="p-8 flex items-center justify-center h-full text-muted-foreground">
+          Overview Content
+        </div>
+      </div>
+    </div>
   )
 }

@@ -2,16 +2,15 @@
 
 import * as React from "react"
 import {
-  BookOpen,
-  Bot,
   Folder,
   Frame,
   Map,
   PieChart,
   Settings2,
   SquareTerminal,
+  Workflow,
 } from "lucide-react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter, useParams, usePathname } from "next/navigation"
 
 import { NavMain } from "@/components/layout/nav-main"
 import { NavProjects } from "@/components/layout/nav-projects"
@@ -28,156 +27,65 @@ import { useWorkspace } from "@/hooks/use-workspace"
 import { getOrganizationWorkspaces } from "@/features/workspaces/workspace-actions"
 import type { Workspace } from "@/types/database"
 
-// This is sample data.
-const data = {
-  navMain: [
-    {
-      title: "Playground",
-      url: "#",
-      icon: SquareTerminal,
-      isActive: true,
-      items: [
-        {
-          title: "History",
-          url: "#",
-        },
-        {
-          title: "Starred",
-          url: "#",
-        },
-        {
-          title: "Settings",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Models",
-      url: "#",
-      icon: Bot,
-      items: [
-        {
-          title: "Genesis",
-          url: "#",
-        },
-        {
-          title: "Explorer",
-          url: "#",
-        },
-        {
-          title: "Quantum",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Documentation",
-      url: "#",
-      icon: BookOpen,
-      items: [
-        {
-          title: "Introduction",
-          url: "#",
-        },
-        {
-          title: "Get Started",
-          url: "#",
-        },
-        {
-          title: "Tutorials",
-          url: "#",
-        },
-        {
-          title: "Changelog",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: Settings2,
-      items: [
-        {
-          title: "General",
-          url: "#",
-        },
-        {
-          title: "Team",
-          url: "#",
-        },
-        {
-          title: "Billing",
-          url: "#",
-        },
-        {
-          title: "Limits",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  projects: [
-    {
-      name: "Design Engineering",
-      url: "#",
-      icon: Frame,
-    },
-    {
-      name: "Sales & Marketing",
-      url: "#",
-      icon: PieChart,
-    },
-    {
-      name: "Travel",
-      url: "#",
-      icon: Map,
-    },
-  ],
-}
+const projects = [
+  {
+    name: "Design Engineering",
+    url: "#",
+    icon: Frame,
+  },
+  {
+    name: "Sales & Marketing",
+    url: "#",
+    icon: PieChart,
+  },
+  {
+    name: "Travel",
+    url: "#",
+    icon: Map,
+  },
+]
 
-export type WorkspaceSection = 'playground' | 'models' | 'documentation' | 'settings'
+export type WorkspaceSection = 'overview' | 'workflows' | 'settings'
 
 interface WorkspaceSidebarProps extends React.ComponentProps<typeof Sidebar> {
   activeSection?: WorkspaceSection
-  onSectionChange?: (section: WorkspaceSection) => void
 }
 
-export function WorkspaceSidebar({ activeSection, onSectionChange, ...props }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ activeSection, ...props }: WorkspaceSidebarProps) {
   const { user, organization } = useWorkspace()
   const [workspaces, setWorkspaces] = React.useState<Workspace[]>([])
   const [loading, setLoading] = React.useState(true)
   const router = useRouter()
   const params = useParams()
+  const pathname = usePathname()
 
   const organizationId = params?.organizationId as string | undefined
   const workspaceId = params?.workspaceId as string | undefined
 
-  // Update nav data with active state and click handlers
-  const updatedNavMain = data.navMain.map(item => {
-    const sectionName = item.title.toLowerCase() as WorkspaceSection
-    return {
-      ...item,
-      isActive: activeSection === sectionName,
-      onClick: (e: React.MouseEvent) => {
-        if (onSectionChange) {
-          e.preventDefault()
-          onSectionChange(sectionName)
-        }
-      },
-      // Keep submenu items but make them trigger section change if needed, or keeping them as dummy links for now
-      items: item.items.map(subItem => ({
-        ...subItem,
-        url: '#', // Ensure they don't navigate away for now
-        onClick: (e: React.MouseEvent) => {
-          if (onSectionChange) {
-             e.preventDefault()
-             onSectionChange(sectionName)
-          }
-        }
-      }))
-    }
-  })
+  const baseWorkspacePath = organizationId && workspaceId
+    ? `/organizations/${organizationId}/workspaces/${workspaceId}`
+    : undefined
+
+  const navItems = [
+    {
+      title: "Overview",
+      url: baseWorkspacePath ?? '#',
+      icon: SquareTerminal,
+      isActive: !!baseWorkspacePath && pathname?.startsWith(baseWorkspacePath) && !pathname?.includes('/workflows'),
+    },
+    {
+      title: "Workflows",
+      url: baseWorkspacePath ? `${baseWorkspacePath}/workflows` : '#',
+      icon: Workflow,
+      isActive: pathname?.includes('/workflows') || activeSection === 'workflows',
+    },
+    {
+      title: "Settings",
+      url: organizationId ? `/organizations/${organizationId}/settings/workspaces` : '#',
+      icon: Settings2,
+      isActive: pathname?.includes('/settings') || activeSection === 'settings',
+    },
+  ]
 
   React.useEffect(() => {
     async function fetchWorkspaces() {
@@ -237,8 +145,8 @@ export function WorkspaceSidebar({ activeSection, onSectionChange, ...props }: W
         )}
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={updatedNavMain} />
-        <NavProjects projects={data.projects} />
+        <NavMain items={navItems} />
+        <NavProjects projects={projects} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={userData} />

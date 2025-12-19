@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { LayoutDashboard, LogOut } from 'lucide-react'
-import { ThemeToggle } from '@/components/theme-toggle'
+
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/use-auth'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -130,35 +130,35 @@ export function MarketingNavbar() {
   }
 
   const resources: { title: string; href: string; description: string }[] = [
-  {
-    title: "About Us",
-    href: "/about",
-    description: "Learn about our mission, vision, and the team behind our platform",
-  },
-]
+    {
+      title: "About Us",
+      href: "/about",
+      description: "Learn about our mission, vision, and the team behind our platform",
+    },
+  ]
 
-function ListItem({
-  title,
-  children,
-  href,
-  ...props
-}: React.ComponentPropsWithoutRef<"li"> & { href: string }) {
-  return (
-    <li {...props}>
-      <NavigationMenuLink asChild>
-        <Link 
-          href={href}
-          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-        >
-          <div className="text-sm font-medium leading-none">{title}</div>
-          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-            {children}
-          </p>
-        </Link>
-      </NavigationMenuLink>
-    </li>
-  )
-}
+  function ListItem({
+    title,
+    children,
+    href,
+    ...props
+  }: React.ComponentPropsWithoutRef<"li"> & { href: string }) {
+    return (
+      <li {...props}>
+        <NavigationMenuLink asChild>
+          <Link
+            href={href}
+            className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+          >
+            <div className="text-sm font-medium leading-none">{title}</div>
+            <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+              {children}
+            </p>
+          </Link>
+        </NavigationMenuLink>
+      </li>
+    )
+  }
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -270,7 +270,6 @@ function ListItem({
               </Button>
             </>
           )}
-          <ThemeToggle />
         </div>
       </div>
     </header>

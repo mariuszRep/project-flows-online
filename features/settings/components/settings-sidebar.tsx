@@ -201,7 +201,7 @@ export function SettingsSidebar({
                           isActive={activeSection === 'general' && activeSubsection === subsection.value}
                           className={navigationDisabled ? 'pointer-events-none opacity-50' : ''}
                         >
-                          <Link href={organizationId ? `/organizations/${organizationId}/settings/general/${subsection.value}` : '#'}>
+                          <Link href={organizationId ? `/organizations/${organizationId}/settings/general` : '#'}>
                             <subsection.icon className="h-4 w-4" />
                             <span>{subsection.label}</span>
                           </Link>

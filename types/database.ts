@@ -321,6 +321,161 @@ export type Database = {
             foreignKeyName: "roles_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
+          referencedRelation: "users"
+          referencedColumns: ["id"]
+        },
+      ]
+    }
+      workflow_edges: {
+        Row: {
+          created_at: string
+          data: Json | null
+          id: string
+          source: string
+          source_handle: string | null
+          target: string
+          target_handle: string | null
+          type: string | null
+          updated_at: string
+          workflow_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          source: string
+          source_handle?: string | null
+          target: string
+          target_handle?: string | null
+          type?: string | null
+          updated_at?: string
+          workflow_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          source?: string
+          source_handle?: string | null
+          target?: string
+          target_handle?: string | null
+          type?: string | null
+          updated_at?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_edges_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_nodes: {
+        Row: {
+          created_at: string
+          data: Json
+          height: number | null
+          id: string
+          position_x: number
+          position_y: number
+          type: string
+          updated_at: string
+          width: number | null
+          workflow_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          height?: number | null
+          id?: string
+          position_x?: number
+          position_y?: number
+          type: string
+          updated_at?: string
+          width?: number | null
+          workflow_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          height?: number | null
+          id?: string
+          position_x?: number
+          position_y?: number
+          type?: string
+          updated_at?: string
+          width?: number | null
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_nodes_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflows_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflows_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -693,10 +848,12 @@ export type Role = Database["public"]["Tables"]["roles"]["Row"]
 export type Invitation = Database["public"]["Tables"]["invitations"]["Row"]
 export type OnboardingProgress = Database["public"]["Tables"]["onboarding_progress"]["Row"]
 export type Subscription = Database["public"]["Tables"]["subscriptions"]["Row"]
+export type WorkflowTable = Database["public"]["Tables"]["workflows"]["Row"]
+export type WorkflowNodeTable = Database["public"]["Tables"]["workflow_nodes"]["Row"]
+export type WorkflowEdgeTable = Database["public"]["Tables"]["workflow_edges"]["Row"]
 
 export type PrincipalType = 'user' | 'group'
 export type ObjectType = 'organization' | 'workspace'
 export type PermissionAction = 'select' | 'insert' | 'update' | 'delete' | 'create' | 'read' | 'manage'
 export type UsersPermissionsView = Database['public']['Views']['users_permissions']['Row']
 export type SubscriptionStatus = Database['public']['Enums']['subscription_status']
-

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { SidebarLayout } from '@/components/layout/sidebar-layout'
 import { WorkspaceSidebar, type WorkspaceSection } from '@/features/workspaces/components/workspace-sidebar'
 import {
@@ -17,79 +17,60 @@ import type { Workspace } from '@/types/database'
 interface WorkspaceClientProps {
   workspace: Workspace
   organizationName: string
+  workflowName?: string
+  children: React.ReactNode
 }
 
-export function WorkspaceClient({ workspace, organizationName }: WorkspaceClientProps) {
-  const router = useRouter()
+export function WorkspaceClient({ workspace, organizationName, workflowName, children }: WorkspaceClientProps) {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
 
-  const [activeSection, setActiveSection] = React.useState<WorkspaceSection>('playground')
-  
-  // Track if we're currently updating to prevent loops
-  const isUpdatingRef = React.useRef(false)
-  const prevSearchParamsRef = React.useRef<URLSearchParams | null>(null)
-
-  React.useEffect(() => {
-    // Skip if we're in the middle of a programmatic update
-    if (isUpdatingRef.current) {
-      isUpdatingRef.current = false
-      return
+  const activeSection: WorkspaceSection = React.useMemo(() => {
+    if (pathname?.includes('/workflows')) {
+      return 'workflows'
     }
-
-    const searchParamsString = searchParams?.toString()
-    const prevSearchParamsString = prevSearchParamsRef.current?.toString()
-    const urlChanged = searchParamsString !== prevSearchParamsString
-
-    prevSearchParamsRef.current = searchParams
-
-    if (urlChanged) {
-      const sectionParam = searchParams?.get('section') as WorkspaceSection | null
-      if (sectionParam) {
-        setActiveSection(sectionParam)
-      }
+    if (pathname?.includes('/settings')) {
+      return 'settings'
     }
-  }, [searchParams])
+    return 'overview'
+  }, [pathname])
 
-  const handleSectionChange = (section: WorkspaceSection) => {
-    const currentSection = searchParams?.get('section')
-
-    if (currentSection === section) {
-      return
+  const sectionLabel = React.useMemo(() => {
+    switch (activeSection) {
+      case 'workflows':
+        return 'Workflows'
+      case 'settings':
+        return 'Settings'
+      case 'overview':
+        return 'Overview'
     }
+  }, [activeSection])
 
-    setActiveSection(section)
-    const params = new URLSearchParams(searchParams?.toString() || '')
-    params.set('section', section)
-    const queryString = params.toString()
+  // Derive extra breadcrumbs from pathname
+  const extraBreadcrumbs = React.useMemo(() => {
+    const crumbs: Array<{ label: string; href?: string }> = []
     
-    isUpdatingRef.current = true
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
-  }
+    if (pathname?.includes('/workflows/create')) {
+      crumbs.push({ label: 'Create Workflow' })
+    } else if (pathname?.includes('/workflows/') && workflowName) {
+      crumbs.push({ label: workflowName })
+    }
+    
+    return crumbs
+  }, [pathname, workflowName])
 
-  const renderContent = () => {
-    return (
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-        </div>
-        <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min">
-          <div className="p-8 flex items-center justify-center h-full text-muted-foreground">
-            {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} View
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const sectionHref = React.useMemo(() => {
+    if (activeSection === 'workflows' && extraBreadcrumbs.length > 0) {
+      return `/organizations/${workspace.organization_id}/workspaces/${workspace.id}/workflows`
+    }
+
+    return undefined
+  }, [activeSection, extraBreadcrumbs.length, workspace.id, workspace.organization_id])
 
   return (
     <SidebarLayout
       sidebar={
-        <WorkspaceSidebar 
+        <WorkspaceSidebar
           activeSection={activeSection}
-          onSectionChange={handleSectionChange}
         />
       }
       header={
@@ -102,19 +83,40 @@ export function WorkspaceClient({ workspace, organizationName }: WorkspaceClient
             </BreadcrumbItem>
             <BreadcrumbSeparator className="hidden md:block" />
             <BreadcrumbItem>
-              <BreadcrumbLink href="#">
+              <BreadcrumbLink href={`/organizations/${workspace.organization_id}/workspaces/${workspace.id}`}>
                 {workspace.name}
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage className="capitalize">{activeSection}</BreadcrumbPage>
+              {extraBreadcrumbs.length > 0 && sectionHref ? (
+                <BreadcrumbLink href={sectionHref}>{sectionLabel}</BreadcrumbLink>
+              ) : (
+                <BreadcrumbPage>{sectionLabel}</BreadcrumbPage>
+              )}
             </BreadcrumbItem>
+            {extraBreadcrumbs.map((crumb, index) => {
+              const isLast = index === extraBreadcrumbs.length - 1
+              return (
+                <React.Fragment key={`${crumb.label}-${index}`}>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    {isLast ? (
+                      <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink href={crumb.href ?? undefined}>
+                        {crumb.label}
+                      </BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>
+                </React.Fragment>
+              )
+            })}
           </BreadcrumbList>
         </Breadcrumb>
       }
     >
-      {renderContent()}
+      {children}
     </SidebarLayout>
   )
 }
