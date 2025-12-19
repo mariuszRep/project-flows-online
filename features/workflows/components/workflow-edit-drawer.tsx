@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { useSidebar } from '@/components/ui/sidebar'
 import { Trash2 } from 'lucide-react'
 import type { Node, Edge } from '@xyflow/react'
 import type { WorkflowNodeData } from './workflow-node'
@@ -49,13 +48,7 @@ export function WorkflowEditDrawer({
   isSaving = false,
   paletteExpanded = false,
 }: WorkflowEditDrawerProps) {
-  const { state } = useSidebar()
   const [formData, setFormData] = React.useState<any>({})
-
-  // Calculate offsets based on sidebar and palette
-  const sidebarOffset = state === 'expanded' ? '16rem' : '3rem' // Sidebar width
-  const paletteOffset = paletteExpanded ? '20rem' : '4rem' // 80 (320px) when expanded, 16 (64px) when collapsed
-  const totalLeftOffset = `calc(${sidebarOffset} + ${paletteOffset})`
 
   // Initialize form data when drawer opens or data changes
   React.useEffect(() => {
@@ -221,14 +214,9 @@ export function WorkflowEditDrawer({
   return (
     <div
       className={cn(
-        "bg-background fixed z-[5] flex h-auto flex-col border-t shadow-lg transition-transform duration-300 ease-in-out",
+        "bg-background absolute z-10 flex h-auto flex-col border-t shadow-lg transition-transform duration-300 ease-in-out",
         "inset-x-0 bottom-0 mt-24 max-h-[80vh] rounded-t-lg"
       )}
-      style={{
-        left: totalLeftOffset,
-        width: `calc(100% - ${totalLeftOffset})`,
-        right: 'auto',
-      }}
     >
       <div className="bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full" />
       <div className="mx-auto w-full max-w-2xl">

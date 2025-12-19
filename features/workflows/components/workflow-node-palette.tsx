@@ -1,23 +1,26 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  ChevronLeft,
-  ChevronRight,
   PlayCircle,
   Settings,
   GitBranch,
   CheckCircle,
+  GripVertical,
+  Workflow,
   type LucideIcon
 } from 'lucide-react'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
 
 interface NodeType {
   type: 'start' | 'process' | 'decision' | 'end'
@@ -54,22 +57,12 @@ const nodeTypes: NodeType[] = [
 ]
 
 interface WorkflowNodePaletteProps {
-  isExpanded?: boolean
-  onExpandedChange?: (expanded: boolean) => void
+  onNodeDoubleClick?: (type: string) => void
 }
 
-export function WorkflowNodePalette({ isExpanded: controlledExpanded, onExpandedChange }: WorkflowNodePaletteProps = {}) {
-  const [internalExpanded, setInternalExpanded] = React.useState(false)
-  const isExpanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded
-
-  const handleToggle = () => {
-    const newValue = !isExpanded
-    if (onExpandedChange) {
-      onExpandedChange(newValue)
-    } else {
-      setInternalExpanded(newValue)
-    }
-  }
+export function WorkflowNodePalette({ onNodeDoubleClick }: WorkflowNodePaletteProps = {}) {
+  const { state } = useSidebar()
+  const isExpanded = state === 'expanded'
 
   const handleDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData('application/reactflow', nodeType)
@@ -77,96 +70,74 @@ export function WorkflowNodePalette({ isExpanded: controlledExpanded, onExpanded
   }
 
   return (
-    <div
-      className={`absolute left-0 top-0 h-full bg-background border-r flex flex-col z-10 transition-all duration-300 ${
-        isExpanded ? 'w-80' : 'w-16'
-      }`}
-    >
-      {/* Toggle Button */}
-      <div className="p-2 border-b">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleToggle}
-          className="w-full h-10"
-        >
-          {isExpanded ? (
-            <ChevronLeft className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
+    <Sidebar collapsible="icon" className="!absolute left-0 top-0 !h-full border-r bg-background">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0 bg-transparent hover:bg-transparent cursor-default">
+              <div className="flex items-center gap-2">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <Workflow className="size-4" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">Workflow Editor</span>
+                </div>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <div className="px-2 py-2 group-data-[collapsible=icon]:hidden">
+            <h3 className="text-xs font-medium text-muted-foreground mb-2">Nodes</h3>
+          </div>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {nodeTypes.map((node) => {
+                const Icon = node.icon
 
-      {/* Header (only visible when expanded) */}
-      {isExpanded && (
-        <div className="px-4 py-3 border-b">
-          <h3 className="font-semibold text-sm">Node Palette</h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Drag nodes onto the canvas
-          </p>
-        </div>
-      )}
-
-      {/* Node List */}
-      <div className="flex-1 overflow-y-auto p-2">
-        <TooltipProvider>
-          <div className="space-y-2">
-            {nodeTypes.map((node) => {
-              const Icon = node.icon
-
-              if (isExpanded) {
-                // Expanded state: Show full cards
                 return (
-                  <Card
-                    key={node.type}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, node.type)}
-                    className="cursor-grab active:cursor-grabbing hover:bg-accent transition-colors"
-                  >
-                    <CardHeader className="p-3">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-primary/10">
-                          <Icon className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-sm">{node.label}</CardTitle>
-                          <CardDescription className="text-xs mt-1">
-                            {node.description}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                )
-              } else {
-                // Collapsed state: Show icon buttons with tooltips
-                return (
-                  <Tooltip key={node.type}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                  <SidebarMenuItem key={node.type}>
+                    {isExpanded ? (
+                      <SidebarMenuButton
+                        className="h-auto py-2 px-3 border border-transparent shadow-none hover:bg-accent hover:text-accent-foreground group cursor-grab active:cursor-grabbing"
                         draggable
                         onDragStart={(e) => handleDragStart(e, node.type)}
-                        className="w-full h-12 cursor-grab active:cursor-grabbing hover:bg-accent"
+                        onDoubleClick={() => onNodeDoubleClick?.(node.type)}
                       >
-                        <Icon className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p className="font-medium">{node.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {node.description}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
+                        <Icon className="size-4 text-muted-foreground group-hover:text-foreground" />
+                        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                          <span className="text-sm font-medium leading-none">{node.label}</span>
+                          <span className="text-xs text-muted-foreground line-clamp-1">{node.description}</span>
+                        </div>
+                        <GripVertical className="size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton
+                        tooltip={{
+                          children: (
+                            <div className="flex flex-col gap-1">
+                              <span className="font-medium">{node.label}</span>
+                              <span className="text-xs text-muted-foreground">{node.description}</span>
+                            </div>
+                          )
+                        }}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, node.type)}
+                        onDoubleClick={() => onNodeDoubleClick?.(node.type)}
+                        className="cursor-grab active:cursor-grabbing h-12 justify-center"
+                      >
+                        <Icon className="size-5" />
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
                 )
-              }
-            })}
-          </div>
-        </TooltipProvider>
-      </div>
-    </div>
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
   )
 }

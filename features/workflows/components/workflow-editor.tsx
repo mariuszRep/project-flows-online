@@ -26,7 +26,8 @@ import { WorkflowNode, type WorkflowNodeData } from './workflow-node'
 import { WorkflowNodePalette } from './workflow-node-palette'
 import { WorkflowEditDrawer } from './workflow-edit-drawer'
 import { Button } from '@/components/ui/button'
-import { Edit, Save, Map as MapIcon } from 'lucide-react'
+import { Edit, Save, Map as MapIcon, PanelLeft } from 'lucide-react'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import {
   saveWorkflow,
   updateWorkflow,
@@ -157,9 +158,12 @@ function WorkflowEditorInner({
     (connection) => {
       const newEdge = {
         ...connection,
-        id: crypto.randomUUID(), // Generate proper UUID instead of xy-edge__
+        id: crypto.randomUUID(),
+        sourceHandle: connection.sourceHandle || null,
+        targetHandle: connection.targetHandle || null,
+        type: 'animated',
       }
-      setEdges((eds) => addEdge(newEdge, eds))
+      setEdges((eds) => addEdge(newEdge as any, eds))
     },
     []
   )
@@ -186,7 +190,7 @@ function WorkflowEditorInner({
 
   // Keyboard delete handler for nodes
   const onNodesDelete = React.useCallback(
-    async (deleted: Node<WorkflowNodeData>[]) => {
+    async (deleted: Node[]) => {
       if (!workflowId) {
         // For unsaved workflows, just update local state
         toast.success(`Deleted ${deleted.length} node(s)`)
@@ -447,15 +451,35 @@ function WorkflowEditorInner({
   }
 
   return (
-    <>
-      <div className="h-full w-full overflow-hidden border rounded-lg shadow-sm relative">
-        <WorkflowNodePalette
-          isExpanded={paletteExpanded}
-          onExpandedChange={setPaletteExpanded}
-        />
+    <SidebarProvider
+      open={paletteExpanded}
+      onOpenChange={setPaletteExpanded}
+      className="h-full w-full overflow-hidden border rounded-lg shadow-sm relative isolate !min-h-0"
+    >
+      <WorkflowNodePalette onNodeDoubleClick={(type) => {
+        const position = reactFlowInstance.screenToFlowPosition({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        })
+
+        const nodeConfig = getNodeConfig(type)
+        const newNode: Node<WorkflowNodeData> = {
+          id: crypto.randomUUID(),
+          type: 'workflow',
+          position,
+          data: nodeConfig as WorkflowNodeData,
+        }
+
+        setNodes((nds) => nds.concat(newNode))
+        toast.success(`Added ${nodeConfig.label} node`)
+      }} />
+      <SidebarInset className="bg-background relative flex flex-col flex-1 h-full overflow-hidden">
+        <header className="absolute top-4 left-4 z-50">
+          <SidebarTrigger className="bg-background border shadow-sm" />
+        </header>
         <div
           ref={reactFlowWrapper}
-          className="h-full w-full pl-16"
+          className="h-full w-full relative"
           onDragOver={onDragOver}
           onDrop={onDrop}
         >
@@ -519,8 +543,8 @@ function WorkflowEditorInner({
             />
           </Canvas>
         </div>
-      </div>
-    </>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
 
