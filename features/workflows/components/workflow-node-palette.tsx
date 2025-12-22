@@ -111,7 +111,7 @@ export function WorkflowNodePalette({ onNodeDoubleClick }: WorkflowNodePalettePr
                     >
                       <Icon />
                       <span>{node.label}</span>
-                      <GripVertical className="ml-auto size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity group-data-[collapsible=icon]:hidden" />
+                      <GripVertical className="ml-auto size-4 text-muted-foreground/50 group-data-[collapsible=icon]:hidden" />
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )

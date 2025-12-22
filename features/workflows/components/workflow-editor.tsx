@@ -44,9 +44,11 @@ const nodeTypes = {
   workflow: WorkflowNode,
 } satisfies NodeTypes
 
+import { TemporaryEdge } from './custom-edges'
+
 const edgeTypes = {
   animated: EdgeComponent.Animated,
-  temporary: EdgeComponent.Temporary,
+  temporary: TemporaryEdge,
 }
 
 // Helper function to get node configuration based on type
