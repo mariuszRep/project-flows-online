@@ -190,6 +190,34 @@ function WorkflowEditorInner({
     []
   )
 
+  // Single-click handler for nodes (updates drawer if open)
+  const onNodeClick: NodeMouseHandler = React.useCallback(
+    (event, node) => {
+      setDrawerOpen((isOpen) => {
+        if (isOpen) {
+          setDrawerType('node')
+          setDrawerData({ node })
+        }
+        return isOpen
+      })
+    },
+    []
+  )
+
+  // Single-click handler for edges (updates drawer if open)
+  const onEdgeClick: EdgeMouseHandler = React.useCallback(
+    (event, edge) => {
+      setDrawerOpen((isOpen) => {
+        if (isOpen) {
+          setDrawerType('edge')
+          setDrawerData({ edge })
+        }
+        return isOpen
+      })
+    },
+    []
+  )
+
   // Keyboard delete handler for nodes
   const onNodesDelete = React.useCallback(
     async (deleted: Node[]) => {
@@ -491,6 +519,8 @@ function WorkflowEditorInner({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            onEdgeClick={onEdgeClick}
             onNodeDoubleClick={onNodeDoubleClick}
             onEdgeDoubleClick={onEdgeDoubleClick}
             onNodesDelete={onNodesDelete}

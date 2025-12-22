@@ -209,16 +209,68 @@ export function WorkflowEditDrawer({
     }
   }
 
+  const [isDragging, setIsDragging] = React.useState(false)
+  const [dragY, setDragY] = React.useState(0)
+  const [dragStartY, setDragStartY] = React.useState(0)
+
+  // Reset drag state when closed
+  React.useEffect(() => {
+    if (!open) {
+      setDragY(0)
+      setIsDragging(false)
+    }
+  }, [open])
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true)
+    setDragStartY(e.clientY - dragY)
+      ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return
+    const newDragY = e.clientY - dragStartY
+    // Only allow dragging down
+    if (newDragY >= 0) {
+      setDragY(newDragY)
+    }
+  }
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false)
+      ; (e.target as HTMLElement).releasePointerCapture(e.pointerId)
+
+    // Threshold to close
+    if (dragY > 100) {
+      onOpenChange(false)
+    } else {
+      setDragY(0)
+    }
+  }
+
   if (!open) return null
 
   return (
     <div
       className={cn(
-        "bg-background absolute z-10 flex h-auto flex-col border-t shadow-lg transition-transform duration-300 ease-in-out",
-        "inset-x-0 bottom-0 mt-24 max-h-[80vh] rounded-t-lg"
+        "bg-background absolute z-10 flex h-auto flex-col border-t shadow-lg",
+        "inset-x-0 bottom-0 mt-24 max-h-[80vh] rounded-t-lg",
+        // Add transition usually, but disable when dragging for performance
+        !isDragging && "transition-transform duration-500 ease-[0.32,0.72,0,1]"
       )}
+      style={{
+        transform: `translateY(${dragY}px)`,
+        // Optimization for moving elements
+        willChange: 'transform',
+      }}
     >
-      <div className="bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full" />
+      <div
+        className="mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full bg-muted cursor-grab active:cursor-grabbing touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      />
       <div className="mx-auto w-full max-w-2xl">
         <div className="flex flex-col gap-0.5 p-4 text-center md:text-left">
           <h2 className="text-foreground font-semibold tracking-tight text-lg">{getTitle()}</h2>
