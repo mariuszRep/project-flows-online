@@ -1,3 +1,7 @@
+'use client'
+
+// React Flow canvas wrapper for AI workflows
+
 import { Background, ReactFlow, type ReactFlowProps } from "@xyflow/react";
 import type { ReactNode } from "react";
 import "@xyflow/react/dist/style.css";
@@ -10,9 +14,9 @@ export const Canvas = ({ children, ...props }: CanvasProps) => (
   <ReactFlow
     deleteKeyCode={["Backspace", "Delete"]}
     fitView
-    panOnDrag={true}
+    panOnDrag={false}
     panOnScroll
-    selectionOnDrag={false}
+    selectionOnDrag={true}
     zoomOnDoubleClick={false}
     {...props}
   >

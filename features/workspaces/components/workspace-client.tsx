@@ -4,6 +4,7 @@ import * as React from 'react'
 import { usePathname } from 'next/navigation'
 import { SidebarLayout } from '@/components/layout/sidebar-layout'
 import { WorkspaceSidebar, type WorkspaceSection } from '@/features/workspaces/components/workspace-sidebar'
+import { WorkflowsView } from '@/features/workflows/components/workflows-view'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -63,8 +64,32 @@ export function WorkspaceClient({ workspace, organizationName, workflowName, chi
       return `/organizations/${workspace.organization_id}/workspaces/${workspace.id}/workflows`
     }
 
-    return undefined
-  }, [activeSection, extraBreadcrumbs.length, workspace.id, workspace.organization_id])
+  const renderContent = () => {
+    // Render workflows section
+    if (activeSection === 'workflows') {
+      return (
+        <WorkflowsView
+          organizationId={workspace.organization_id}
+        />
+      )
+    }
+
+    // Default placeholder for other sections
+    return (
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+          <div className="bg-muted/50 aspect-video rounded-xl" />
+          <div className="bg-muted/50 aspect-video rounded-xl" />
+          <div className="bg-muted/50 aspect-video rounded-xl" />
+        </div>
+        <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min">
+          <div className="p-8 flex items-center justify-center h-full text-muted-foreground">
+            {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} View
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <SidebarLayout

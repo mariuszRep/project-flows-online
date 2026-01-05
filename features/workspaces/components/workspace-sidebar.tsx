@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   Folder,
   Frame,
+  GitBranch,
   Map,
   PieChart,
   Settings2,
@@ -27,25 +28,134 @@ import { useWorkspace } from "@/hooks/use-workspace"
 import { getOrganizationWorkspaces } from "@/features/workspaces/workspace-actions"
 import type { Workspace } from "@/types/database"
 
-const projects = [
-  {
-    name: "Design Engineering",
-    url: "#",
-    icon: Frame,
-  },
-  {
-    name: "Sales & Marketing",
-    url: "#",
-    icon: PieChart,
-  },
-  {
-    name: "Travel",
-    url: "#",
-    icon: Map,
-  },
-]
+// This is sample data.
+const data = {
+  navMain: [
+    {
+      title: "Playground",
+      url: "#",
+      icon: SquareTerminal,
+      isActive: true,
+      items: [
+        {
+          title: "History",
+          url: "#",
+        },
+        {
+          title: "Starred",
+          url: "#",
+        },
+        {
+          title: "Settings",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Models",
+      url: "#",
+      icon: Bot,
+      items: [
+        {
+          title: "Genesis",
+          url: "#",
+        },
+        {
+          title: "Explorer",
+          url: "#",
+        },
+        {
+          title: "Quantum",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Workflows",
+      url: "#",
+      icon: GitBranch,
+      items: [
+        {
+          title: "All Workflows",
+          url: "#",
+        },
+        {
+          title: "Create New",
+          url: "#",
+        },
+        {
+          title: "Templates",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Documentation",
+      url: "#",
+      icon: BookOpen,
+      items: [
+        {
+          title: "Introduction",
+          url: "#",
+        },
+        {
+          title: "Get Started",
+          url: "#",
+        },
+        {
+          title: "Tutorials",
+          url: "#",
+        },
+        {
+          title: "Changelog",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Settings",
+      url: "#",
+      icon: Settings2,
+      items: [
+        {
+          title: "General",
+          url: "#",
+        },
+        {
+          title: "Team",
+          url: "#",
+        },
+        {
+          title: "Billing",
+          url: "#",
+        },
+        {
+          title: "Limits",
+          url: "#",
+        },
+      ],
+    },
+  ],
+  projects: [
+    {
+      name: "Design Engineering",
+      url: "#",
+      icon: Frame,
+    },
+    {
+      name: "Sales & Marketing",
+      url: "#",
+      icon: PieChart,
+    },
+    {
+      name: "Travel",
+      url: "#",
+      icon: Map,
+    },
+  ],
+}
 
-export type WorkspaceSection = 'overview' | 'workflows' | 'settings'
+export type WorkspaceSection = 'playground' | 'models' | 'documentation' | 'settings' | 'workflows'
 
 interface WorkspaceSidebarProps extends React.ComponentProps<typeof Sidebar> {
   activeSection?: WorkspaceSection
@@ -62,30 +172,46 @@ export function WorkspaceSidebar({ activeSection, ...props }: WorkspaceSidebarPr
   const organizationId = params?.organizationId as string | undefined
   const workspaceId = params?.workspaceId as string | undefined
 
-  const baseWorkspacePath = organizationId && workspaceId
-    ? `/organizations/${organizationId}/workspaces/${workspaceId}`
-    : undefined
+  // Update nav data with active state and click handlers
+  const updatedNavMain = data.navMain.map(item => {
+    const sectionName = item.title.toLowerCase() as WorkspaceSection
+    return {
+      ...item,
+      isActive: activeSection === sectionName,
+      onClick: (e: React.MouseEvent) => {
+        if (onSectionChange) {
+          e.preventDefault()
+          onSectionChange(sectionName)
+        }
+      },
+      // Keep submenu items but make them trigger section change if needed, or keeping them as dummy links for now
+      items: item.items.map(subItem => ({
+        ...subItem,
+        url: '#', // Ensure they don't navigate away for now
+        onClick: (e: React.MouseEvent) => {
+          e.preventDefault()
 
-  const navItems = [
-    {
-      title: "Overview",
-      url: baseWorkspacePath ?? '#',
-      icon: SquareTerminal,
-      isActive: !!baseWorkspacePath && pathname?.startsWith(baseWorkspacePath) && !pathname?.includes('/workflows'),
-    },
-    {
-      title: "Workflows",
-      url: baseWorkspacePath ? `${baseWorkspacePath}/workflows` : '#',
-      icon: Workflow,
-      isActive: pathname?.includes('/workflows') || activeSection === 'workflows',
-    },
-    {
-      title: "Settings",
-      url: organizationId ? `/organizations/${organizationId}/settings/workspaces` : '#',
-      icon: Settings2,
-      isActive: pathname?.includes('/settings') || activeSection === 'settings',
-    },
-  ]
+          // Special handling for Workflows items
+          if (item.title === 'Workflows') {
+            if (subItem.title === 'All Workflows') {
+              if (organizationId) {
+                router.push(`/organizations/${organizationId}/workflows`)
+              }
+            } else if (subItem.title === 'Create New') {
+              if (organizationId) {
+                router.push(`/organizations/${organizationId}/workflows/create`)
+              }
+            }
+          } else {
+            // Default behavior: just change section
+            if (onSectionChange) {
+              onSectionChange(sectionName)
+            }
+          }
+        }
+      }))
+    }
+  })
 
   React.useEffect(() => {
     async function fetchWorkspaces() {

@@ -29,11 +29,11 @@ const Temporary = ({
 
   return (
     <BaseEdge
-      className="stroke-1 stroke-ring"
+      className="stroke-2 stroke-muted-foreground/50"
       id={id}
       path={edgePath}
       style={{
-        strokeDasharray: "5, 5",
+        strokeDasharray: "8, 4",
       }}
     />
   );
@@ -126,9 +126,15 @@ const Animated = ({ id, source, target, markerEnd, style }: EdgeProps) => {
 
   return (
     <>
-      <BaseEdge id={id} markerEnd={markerEnd} path={edgePath} style={style} />
-      <circle fill="var(--primary)" r="4">
-        <animateMotion dur="2s" path={edgePath} repeatCount="indefinite" />
+      <BaseEdge 
+        id={id} 
+        markerEnd={markerEnd} 
+        path={edgePath} 
+        style={style}
+        className="stroke-2 stroke-foreground"
+      />
+      <circle fill="var(--primary)" r="3" className="drop-shadow-sm">
+        <animateMotion dur="3s" path={edgePath} repeatCount="indefinite" />
       </circle>
     </>
   );

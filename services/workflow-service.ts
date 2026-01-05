@@ -1,738 +1,597 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, WorkflowTable, WorkflowNodeTable, WorkflowEdgeTable, Json } from '@/types/database'
-import type { WorkflowCanvasNode, WorkflowCanvasEdge, WorkflowDetail, WorkflowNodeData } from '@/types/workflow'
+import { SupabaseClient } from '@supabase/supabase-js'
+import {
+  Workflow,
+  WorkflowNode,
+  WorkflowEdge,
+  CreateWorkflowInput,
+  UpdateWorkflowInput,
+  CreateNodeInput,
+  UpdateNodeInput,
+  CreateEdgeInput,
+  UpdateEdgeInput,
+  WorkflowWithElements,
+} from '@/types/workflow'
+import { createClient } from '@/lib/supabase/server'
 
-/**
- * Shared service for workflow queries
- * Encapsulates logic for querying workflows, workflow_nodes, and workflow_edges tables
- * Framework-agnostic business logic with RLS-based access control
- */
 export class WorkflowService {
-  constructor(private readonly supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient) {}
 
   /**
-   * Get all workflows for an organization
-   * @param organizationId - Organization ID
-   * @returns Success result with workflows array or error
+   * Get all workflows for an organization (RLS handles filtering)
    */
-  async getByOrganization(organizationId: string): Promise<{
-    success: boolean
-    workflows?: WorkflowTable[]
-    error?: string
-  }> {
-    try {
-      const { data, error } = await this.supabase
-        .from('workflows')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false })
+  async getOrganizationWorkflows(organizationId: string): Promise<Workflow[]> {
+    const { data, error } = await this.supabase
+      .from('workflows')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('updated_at', { ascending: false })
 
-      if (error) {
-        console.error('Error fetching workflows:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true, workflows: data || [] }
-    } catch (error) {
+    if (error) {
       console.error('Error fetching workflows:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+      throw new Error('Failed to fetch workflows')
     }
+
+    return data || []
   }
 
   /**
-   * Get a single workflow by ID with nodes and edges
-   * @param workflowId - Workflow ID
-   * @returns Success result with workflow detail or error
+   * Get a single workflow by ID
    */
-  async getById(workflowId: string): Promise<{
-    success: boolean
-    workflow?: WorkflowDetail
-    error?: string
-  }> {
-    try {
-      const { data: workflowData, error: workflowError } = await this.supabase
-        .from('workflows')
-        .select('*')
-        .eq('id', workflowId)
-        .single()
+  async getWorkflowById(workflowId: string): Promise<Workflow | null> {
+    const { data, error } = await this.supabase
+      .from('workflows')
+      .select('*')
+      .eq('id', workflowId)
+      .single()
 
-      if (workflowError) {
-        console.error('Error fetching workflow:', workflowError)
-        return { success: false, error: workflowError.message }
-      }
-
-      if (!workflowData) {
-        return { success: false, error: 'Workflow not found' }
-      }
-
-      const { data: nodeData, error: nodesError } = await this.supabase
-        .from('workflow_nodes')
-        .select('*')
-        .eq('workflow_id', workflowId)
-
-      if (nodesError) {
-        console.error('Error fetching workflow nodes:', nodesError)
-        return { success: false, error: nodesError.message }
-      }
-
-      const { data: edgeData, error: edgesError } = await this.supabase
-        .from('workflow_edges')
-        .select('*')
-        .eq('workflow_id', workflowId)
-
-      if (edgesError) {
-        console.error('Error fetching workflow edges:', edgesError)
-        return { success: false, error: edgesError.message }
-      }
-
-      const nodes: WorkflowCanvasNode[] = (nodeData || []).map((node) => ({
-        id: node.id,
-        type: node.type,
-        position: { x: node.position_x, y: node.position_y },
-        data: (node.data || { label: 'Untitled' }) as WorkflowNodeData,
-        width: node.width ?? undefined,
-        height: node.height ?? undefined,
-      }))
-
-      const edges: WorkflowCanvasEdge[] = (edgeData || []).map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        sourceHandle: edge.source_handle ?? undefined,
-        targetHandle: edge.target_handle ?? undefined,
-        type: edge.type ?? undefined,
-        data: (edge.data as Record<string, unknown>) ?? undefined,
-      }))
-
-      return {
-        success: true,
-        workflow: {
-          workflow: workflowData,
-          nodes,
-          edges,
-        },
-      }
-    } catch (error) {
+    if (error) {
       console.error('Error fetching workflow:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+      return null
+    }
+
+    return data
+  }
+
+  /**
+   * Get a workflow with all its nodes and edges
+   */
+  async getWorkflowWithElements(workflowId: string): Promise<WorkflowWithElements | null> {
+    // Fetch workflow
+    const workflow = await this.getWorkflowById(workflowId)
+    if (!workflow) {
+      return null
+    }
+
+    // Fetch nodes
+    const { data: nodesData, error: nodesError } = await this.supabase
+      .from('workflow_nodes')
+      .select('*')
+      .eq('workflow_id', workflowId)
+      .order('created_at', { ascending: true })
+
+    if (nodesError) {
+      console.error('Error fetching workflow nodes:', nodesError)
+      throw new Error('Failed to fetch workflow nodes')
+    }
+
+    // Fetch edges
+    const { data: edgesData, error: edgesError } = await this.supabase
+      .from('workflow_edges')
+      .select('*')
+      .eq('workflow_id', workflowId)
+      .order('created_at', { ascending: true })
+
+    if (edgesError) {
+      console.error('Error fetching workflow edges:', edgesError)
+      throw new Error('Failed to fetch workflow edges')
+    }
+
+    // Transform database rows to React Flow compatible format
+    const nodes: WorkflowNode[] = (nodesData || []).map((node) => ({
+      id: node.id,
+      type: node.type,
+      position: { x: node.position_x, y: node.position_y },
+      data: node.data ?? {},
+      width: node.width ?? undefined,
+      height: node.height ?? undefined,
+    }))
+
+    const edges: WorkflowEdge[] = (edgesData || []).map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: edge.source_handle ?? undefined,
+      targetHandle: edge.target_handle ?? undefined,
+      type: edge.type ?? undefined,
+      data: edge.data ?? undefined,
+    }))
+
+    return {
+      ...workflow,
+      nodes,
+      edges,
     }
   }
 
   /**
    * Create a new workflow
-   * @param params - Workflow creation parameters
-   * @param userId - ID of the user creating the workflow
-   * @returns Success result with created workflow or error
    */
-  async create(
-    params: {
-      organization_id: string
-      name: string
-      description?: string
-      status?: 'draft' | 'published' | 'archived'
-    },
-    userId: string
-  ): Promise<{
-    success: boolean
-    workflow?: WorkflowTable
-    error?: string
-  }> {
-    try {
-      const { data, error } = await this.supabase
-        .from('workflows')
-        .insert({
-          organization_id: params.organization_id,
-          name: params.name,
-          description: params.description,
-          status: params.status || 'draft',
-          version: 1,
-          created_by: userId,
-          updated_by: userId,
-        })
-        .select()
-        .single()
+  async createWorkflow(input: CreateWorkflowInput, userId: string): Promise<Workflow> {
+    const { data, error } = await this.supabase
+      .from('workflows')
+      .insert({
+        name: input.name,
+        description: input.description ?? null,
+        organization_id: input.organization_id,
+        status: input.status ?? 'draft',
+        version: 1,
+        created_by: userId,
+        updated_by: userId,
+      })
+      .select()
+      .single()
 
-      if (error) {
-        console.error('Error creating workflow:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true, workflow: data }
-    } catch (error) {
+    if (error) {
       console.error('Error creating workflow:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+      throw new Error('Failed to create workflow')
     }
+
+    return data
   }
 
   /**
-   * Update an existing workflow
-   * @param workflowId - Workflow ID
-   * @param params - Workflow update parameters
-   * @param userId - ID of the user updating the workflow
-   * @returns Success result with updated workflow or error
+   * Update a workflow
    */
-  async update(
+  async updateWorkflow(
     workflowId: string,
-    params: {
-      name?: string
-      description?: string
-      status?: 'draft' | 'published' | 'archived'
-      version?: number
-    },
+    input: UpdateWorkflowInput,
     userId: string
-  ): Promise<{
-    success: boolean
-    workflow?: WorkflowTable
-    error?: string
-  }> {
-    try {
-      const { data, error } = await this.supabase
-        .from('workflows')
-        .update({
-          ...params,
-          updated_by: userId,
-        })
-        .eq('id', workflowId)
-        .select()
-        .single()
+  ): Promise<Workflow> {
+    const { data, error } = await this.supabase
+      .from('workflows')
+      .update({
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.status !== undefined && { status: input.status }),
+        updated_by: userId,
+      })
+      .eq('id', workflowId)
+      .select()
+      .single()
 
-      if (error) {
-        console.error('Error updating workflow:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true, workflow: data }
-    } catch (error) {
+    if (error) {
       console.error('Error updating workflow:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+      throw new Error('Failed to update workflow')
     }
+
+    return data
   }
 
   /**
-   * Delete a workflow (CASCADE deletes nodes and edges automatically)
-   * @param workflowId - Workflow ID
-   * @returns Success result or error
+   * Delete a workflow (and cascade delete nodes and edges)
    */
-  async delete(workflowId: string): Promise<{
-    success: boolean
-    error?: string
-  }> {
-    try {
-      const { error } = await this.supabase
-        .from('workflows')
-        .delete()
-        .eq('id', workflowId)
+  async deleteWorkflow(workflowId: string): Promise<void> {
+    const { error } = await this.supabase.from('workflows').delete().eq('id', workflowId)
 
-      if (error) {
-        console.error('Error deleting workflow:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true }
-    } catch (error) {
+    if (error) {
       console.error('Error deleting workflow:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+      throw new Error('Failed to delete workflow')
     }
   }
 
   /**
-   * Save workflow with nodes and edges in a transactional manner
-   * This method handles the complete workflow state atomically
-   * @param workflowId - Workflow ID
-   * @param nodes - Array of canvas nodes to save
-   * @param edges - Array of canvas edges to save
-   * @param userId - ID of the user saving the workflow
-   * @returns Success result or error
+   * Publish a workflow (change status to published and increment version)
    */
-  async saveWorkflow(
+  async publishWorkflow(workflowId: string, userId: string): Promise<Workflow> {
+    // Get current workflow to increment version
+    const workflow = await this.getWorkflowById(workflowId)
+    if (!workflow) {
+      throw new Error('Workflow not found')
+    }
+
+    const { data, error } = await this.supabase
+      .from('workflows')
+      .update({
+        status: 'published' as const,
+        version: workflow.version + 1,
+        updated_by: userId,
+      })
+      .eq('id', workflowId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error publishing workflow:', error)
+      throw new Error('Failed to publish workflow')
+    }
+
+    return data
+  }
+
+  /**
+   * Archive a workflow
+   */
+  async archiveWorkflow(workflowId: string, userId: string): Promise<Workflow> {
+    const { data, error } = await this.supabase
+      .from('workflows')
+      .update({
+        status: 'archived' as const,
+        updated_by: userId,
+      })
+      .eq('id', workflowId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error archiving workflow:', error)
+      throw new Error('Failed to archive workflow')
+    }
+
+    return data
+  }
+
+  // ========== NODE OPERATIONS ==========
+
+  /**
+   * Get all nodes for a workflow
+   */
+  async getWorkflowNodes(workflowId: string): Promise<WorkflowNode[]> {
+    const { data, error } = await this.supabase
+      .from('workflow_nodes')
+      .select('*')
+      .eq('workflow_id', workflowId)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching workflow nodes:', error)
+      throw new Error('Failed to fetch workflow nodes')
+    }
+
+    return (data || []).map((node) => ({
+      id: node.id,
+      type: node.type,
+      position: { x: node.position_x, y: node.position_y },
+      data: node.data ?? {},
+      width: node.width ?? undefined,
+      height: node.height ?? undefined,
+    }))
+  }
+
+  /**
+   * Create a new node
+   */
+  async createNode(input: CreateNodeInput): Promise<WorkflowNode> {
+    const { data, error } = await this.supabase
+      .from('workflow_nodes')
+      .insert({
+        workflow_id: input.workflow_id,
+        type: input.type,
+        position_x: input.position_x,
+        position_y: input.position_y,
+        data: input.data,
+        width: input.width ?? null,
+        height: input.height ?? null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating node:', error)
+      throw new Error('Failed to create node')
+    }
+
+    return {
+      id: data.id,
+      type: data.type,
+      position: { x: data.position_x, y: data.position_y },
+      data: data.data ?? {},
+      width: data.width ?? undefined,
+      height: data.height ?? undefined,
+    }
+  }
+
+  /**
+   * Update a node
+   */
+  async updateNode(nodeId: string, input: UpdateNodeInput): Promise<WorkflowNode> {
+    const { data, error } = await this.supabase
+      .from('workflow_nodes')
+      .update({
+        ...(input.type !== undefined && { type: input.type }),
+        ...(input.position_x !== undefined && { position_x: input.position_x }),
+        ...(input.position_y !== undefined && { position_y: input.position_y }),
+        ...(input.data !== undefined && { data: input.data }),
+        ...(input.width !== undefined && { width: input.width }),
+        ...(input.height !== undefined && { height: input.height }),
+      })
+      .eq('id', nodeId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating node:', error)
+      throw new Error('Failed to update node')
+    }
+
+    return {
+      id: data.id,
+      type: data.type,
+      position: { x: data.position_x, y: data.position_y },
+      data: data.data ?? {},
+      width: data.width ?? undefined,
+      height: data.height ?? undefined,
+    }
+  }
+
+  /**
+   * Delete a node
+   */
+  async deleteNode(nodeId: string): Promise<void> {
+    const { error } = await this.supabase.from('workflow_nodes').delete().eq('id', nodeId)
+
+    if (error) {
+      console.error('Error deleting node:', error)
+      throw new Error('Failed to delete node')
+    }
+  }
+
+  /**
+   * Batch update node positions
+   */
+  async updateNodePositions(
+    updates: Array<{ id: string; position_x: number; position_y: number }>
+  ): Promise<void> {
+    // Supabase doesn't support batch updates natively, so we'll use multiple updates
+    // In production, consider using an RPC function for better performance
+    const promises = updates.map((update) =>
+      this.supabase
+        .from('workflow_nodes')
+        .update({
+          position_x: update.position_x,
+          position_y: update.position_y,
+        })
+        .eq('id', update.id)
+    )
+
+    const results = await Promise.all(promises)
+    const errors = results.filter((result) => result.error)
+
+    if (errors.length > 0) {
+      console.error('Error updating node positions:', errors)
+      throw new Error('Failed to update node positions')
+    }
+  }
+
+  // ========== EDGE OPERATIONS ==========
+
+  /**
+   * Get all edges for a workflow
+   */
+  async getWorkflowEdges(workflowId: string): Promise<WorkflowEdge[]> {
+    const { data, error } = await this.supabase
+      .from('workflow_edges')
+      .select('*')
+      .eq('workflow_id', workflowId)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching workflow edges:', error)
+      throw new Error('Failed to fetch workflow edges')
+    }
+
+    return (data || []).map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: edge.source_handle ?? undefined,
+      targetHandle: edge.target_handle ?? undefined,
+      type: edge.type ?? undefined,
+      data: edge.data ?? undefined,
+    }))
+  }
+
+  /**
+   * Create a new edge
+   */
+  async createEdge(input: CreateEdgeInput): Promise<WorkflowEdge> {
+    console.log('Creating edge with input:', input)
+    
+    const { data, error } = await this.supabase
+      .from('workflow_edges')
+      .insert({
+        workflow_id: input.workflow_id,
+        source: input.source_node_id,
+        target: input.target_node_id,
+        source_handle: input.source_handle ?? null,
+        target_handle: input.target_handle ?? null,
+        type: input.type ?? null,
+        data: input.data ?? null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating edge:', error)
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      throw new Error(`Failed to create edge: ${error.message}`)
+    }
+
+    return {
+      id: data.id,
+      source: data.source,
+      target: data.target,
+      sourceHandle: data.source_handle ?? undefined,
+      targetHandle: data.target_handle ?? undefined,
+      type: data.type ?? undefined,
+      data: data.data ?? undefined,
+    }
+  }
+
+  /**
+   * Update an edge
+   */
+  async updateEdge(edgeId: string, input: UpdateEdgeInput): Promise<WorkflowEdge> {
+    const { data, error } = await this.supabase
+      .from('workflow_edges')
+      .update({
+        ...(input.type !== undefined && { type: input.type }),
+        ...(input.data !== undefined && { data: input.data }),
+      })
+      .eq('id', edgeId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating edge:', error)
+      throw new Error('Failed to update edge')
+    }
+
+    return {
+      id: data.id,
+      source: data.source,
+      target: data.target,
+      sourceHandle: data.source_handle ?? undefined,
+      targetHandle: data.target_handle ?? undefined,
+      type: data.type ?? undefined,
+      data: data.data ?? undefined,
+    }
+  }
+
+  /**
+   * Delete an edge
+   */
+  async deleteEdge(edgeId: string): Promise<void> {
+    const { error } = await this.supabase.from('workflow_edges').delete().eq('id', edgeId)
+
+    if (error) {
+      console.error('Error deleting edge:', error)
+      throw new Error('Failed to delete edge')
+    }
+  }
+
+  /**
+   * Validate workflow before publishing
+   */
+  async validateWorkflow(workflowId: string): Promise<{ valid: boolean; errors: string[] }> {
+    const workflowWithElements = await this.getWorkflowWithElements(workflowId)
+    if (!workflowWithElements) {
+      return { valid: false, errors: ['Workflow not found'] }
+    }
+
+    const errors: string[] = []
+
+    // Check if workflow has at least one node
+    if (workflowWithElements.nodes.length === 0) {
+      errors.push('Workflow must have at least one node')
+    }
+
+    // Check for orphaned nodes (nodes with no connections)
+    const connectedNodeIds = new Set<string>()
+    workflowWithElements.edges.forEach((edge) => {
+      connectedNodeIds.add(edge.source)
+      connectedNodeIds.add(edge.target)
+    })
+
+    const orphanedNodes = workflowWithElements.nodes.filter(
+      (node) => !connectedNodeIds.has(node.id)
+    )
+    if (orphanedNodes.length > 0 && workflowWithElements.nodes.length > 1) {
+      errors.push(`Found ${orphanedNodes.length} disconnected node(s)`)
+    }
+
+    // Check for invalid edges (edges pointing to non-existent nodes)
+    const nodeIds = new Set(workflowWithElements.nodes.map((node) => node.id))
+    const invalidEdges = workflowWithElements.edges.filter(
+      (edge) => !nodeIds.has(edge.source) || !nodeIds.has(edge.target)
+    )
+    if (invalidEdges.length > 0) {
+      errors.push(`Found ${invalidEdges.length} edge(s) with invalid node references`)
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    }
+  }
+
+  /**
+   * Duplicate a workflow
+   */
+  async duplicateWorkflow(
     workflowId: string,
-    nodes: WorkflowCanvasNode[],
-    edges: WorkflowCanvasEdge[],
+    newName: string,
     userId: string
-  ): Promise<{
-    success: boolean
-    error?: string
-  }> {
-    try {
-      // Update workflow's updated_by and trigger updated_at
-      const { error: workflowError } = await this.supabase
-        .from('workflows')
-        .update({ updated_by: userId })
-        .eq('id', workflowId)
-
-      if (workflowError) {
-        console.error('Error updating workflow:', workflowError)
-        return { success: false, error: workflowError.message }
-      }
-
-      // Delete existing nodes
-      const { error: deleteNodesError } = await this.supabase
-        .from('workflow_nodes')
-        .delete()
-        .eq('workflow_id', workflowId)
-
-      if (deleteNodesError) {
-        console.error('Error deleting workflow nodes:', deleteNodesError)
-        return { success: false, error: deleteNodesError.message }
-      }
-
-      // Delete existing edges
-      const { error: deleteEdgesError } = await this.supabase
-        .from('workflow_edges')
-        .delete()
-        .eq('workflow_id', workflowId)
-
-      if (deleteEdgesError) {
-        console.error('Error deleting workflow edges:', deleteEdgesError)
-        return { success: false, error: deleteEdgesError.message }
-      }
-
-      // Insert new nodes
-      if (nodes.length > 0) {
-        const nodesToInsert = nodes.map((node) => ({
-          id: node.id,
-          workflow_id: workflowId,
-          type: node.type || 'default',
-          position_x: node.position.x,
-          position_y: node.position.y,
-          data: (node.data || {}) as Json,
-          width: node.width ?? null,
-          height: node.height ?? null,
-        }))
-
-        const { error: insertNodesError } = await this.supabase
-          .from('workflow_nodes')
-          .insert(nodesToInsert)
-
-        if (insertNodesError) {
-          console.error('Error inserting workflow nodes:', insertNodesError)
-          return { success: false, error: insertNodesError.message }
-        }
-      }
-
-      // Insert new edges
-      if (edges.length > 0) {
-        const edgesToInsert = edges.map((edge) => ({
-          id: edge.id,
-          workflow_id: workflowId,
-          source: edge.source,
-          target: edge.target,
-          source_handle: edge.sourceHandle ?? null,
-          target_handle: edge.targetHandle ?? null,
-          type: edge.type ?? null,
-          data: (edge.data as Json) ?? null,
-        }))
-
-        const { error: insertEdgesError } = await this.supabase
-          .from('workflow_edges')
-          .insert(edgesToInsert)
-
-        if (insertEdgesError) {
-          console.error('Error inserting workflow edges:', insertEdgesError)
-          return { success: false, error: insertEdgesError.message }
-        }
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Error saving workflow:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+  ): Promise<WorkflowWithElements> {
+    const original = await this.getWorkflowWithElements(workflowId)
+    if (!original) {
+      throw new Error('Workflow not found')
     }
-  }
 
-  /**
-   * Create a single workflow node
-   * @param workflowId - Workflow ID
-   * @param node - Node to create
-   * @returns Success result with created node or error
-   */
-  async createNode(
-    workflowId: string,
-    node: {
-      id: string
-      type: string
-      position_x: number
-      position_y: number
-      data: Json
-      width?: number
-      height?: number
-    }
-  ): Promise<{
-    success: boolean
-    node?: WorkflowNodeTable
-    error?: string
-  }> {
-    try {
-      const { data, error } = await this.supabase
-        .from('workflow_nodes')
-        .insert({
-          id: node.id,
-          workflow_id: workflowId,
-          type: node.type,
-          position_x: node.position_x,
-          position_y: node.position_y,
-          data: node.data as Json,
-          width: node.width ?? null,
-          height: node.height ?? null,
-        })
-        .select()
-        .single()
+    // Create new workflow
+    const newWorkflow = await this.createWorkflow(
+      {
+        name: newName,
+        description: original.description ?? undefined,
+        organization_id: original.organization_id,
+        status: 'draft',
+      },
+      userId
+    )
 
-      if (error) {
-        console.error('Error creating workflow node:', error)
-        return { success: false, error: error.message }
+    // Create node ID mapping (old ID -> new ID)
+    const nodeIdMap = new Map<string, string>()
+
+    // Duplicate nodes
+    const nodePromises = original.nodes.map(async (node) => {
+      const newNode = await this.createNode({
+        workflow_id: newWorkflow.id,
+        type: node.type || 'default',
+        position_x: node.position.x,
+        position_y: node.position.y,
+        data: node.data,
+        width: node.width,
+        height: node.height,
+      })
+      nodeIdMap.set(node.id, newNode.id)
+      return newNode
+    })
+
+    const newNodes = await Promise.all(nodePromises)
+
+    // Duplicate edges with updated node IDs
+    const edgePromises = original.edges.map(async (edge) => {
+      const newSourceId = nodeIdMap.get(edge.source)
+      const newTargetId = nodeIdMap.get(edge.target)
+
+      if (!newSourceId || !newTargetId) {
+        console.error('Failed to map edge node IDs:', edge)
+        return null
       }
 
-      return { success: true, node: data }
-    } catch (error) {
-      console.error('Error creating workflow node:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
+      return this.createEdge({
+        workflow_id: newWorkflow.id,
+        source_node_id: newSourceId,
+        target_node_id: newTargetId,
+        source_handle: edge.sourceHandle,
+        target_handle: edge.targetHandle,
+        type: edge.type,
+        data: edge.data,
+      })
+    })
 
-  /**
-   * Create multiple workflow nodes
-   * @param workflowId - Workflow ID
-   * @param nodes - Array of nodes to create
-   * @returns Success result with created nodes or error
-   */
-  async createNodes(
-    workflowId: string,
-    nodes: Array<{
-      id: string
-      type: string
-      position_x: number
-      position_y: number
-      data: Json
-      width?: number
-      height?: number
-    }>
-  ): Promise<{
-    success: boolean
-    nodes?: WorkflowNodeTable[]
-    error?: string
-  }> {
-    try {
-      const nodesToInsert = nodes.map((node) => ({
-        id: node.id,
-        workflow_id: workflowId,
-        type: node.type,
-        position_x: node.position_x,
-        position_y: node.position_y,
-        data: node.data as Json,
-        width: node.width ?? null,
-        height: node.height ?? null,
-      }))
+    const newEdges = (await Promise.all(edgePromises)).filter(
+      (edge): edge is WorkflowEdge => edge !== null
+    )
 
-      const { data, error } = await this.supabase
-        .from('workflow_nodes')
-        .insert(nodesToInsert)
-        .select()
-
-      if (error) {
-        console.error('Error creating workflow nodes:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true, nodes: data }
-    } catch (error) {
-      console.error('Error creating workflow nodes:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  /**
-   * Update a single workflow node
-   * @param nodeId - Node ID
-   * @param updates - Partial node updates
-   * @returns Success result with updated node or error
-   */
-  async updateNode(
-    nodeId: string,
-    updates: {
-      type?: string
-      position_x?: number
-      position_y?: number
-      data?: Json
-      width?: number | null
-      height?: number | null
-    }
-  ): Promise<{
-    success: boolean
-    node?: WorkflowNodeTable
-    error?: string
-  }> {
-    try {
-      const { data, error } = await this.supabase
-        .from('workflow_nodes')
-        .update(updates)
-        .eq('id', nodeId)
-        .select()
-        .single()
-
-      if (error) {
-        console.error('Error updating workflow node:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true, node: data }
-    } catch (error) {
-      console.error('Error updating workflow node:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  /**
-   * Delete a single workflow node
-   * @param nodeId - Node ID to delete
-   * @returns Success result or error
-   */
-  async deleteNode(nodeId: string): Promise<{
-    success: boolean
-    error?: string
-  }> {
-    try {
-      const { error } = await this.supabase
-        .from('workflow_nodes')
-        .delete()
-        .eq('id', nodeId)
-
-      if (error) {
-        console.error('Error deleting workflow node:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Error deleting workflow node:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  /**
-   * Delete workflow nodes
-   * @param nodeIds - Array of node IDs to delete
-   * @returns Success result or error
-   */
-  async deleteNodes(nodeIds: string[]): Promise<{
-    success: boolean
-    error?: string
-  }> {
-    try {
-      const { error } = await this.supabase
-        .from('workflow_nodes')
-        .delete()
-        .in('id', nodeIds)
-
-      if (error) {
-        console.error('Error deleting workflow nodes:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Error deleting workflow nodes:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  /**
-   * Create a single workflow edge
-   * @param workflowId - Workflow ID
-   * @param edge - Edge to create
-   * @returns Success result with created edge or error
-   */
-  async createEdge(
-    workflowId: string,
-    edge: {
-      id: string
-      source: string
-      target: string
-      source_handle?: string | null
-      target_handle?: string | null
-      type?: string | null
-      data?: Json | null
-    }
-  ): Promise<{
-    success: boolean
-    edge?: WorkflowEdgeTable
-    error?: string
-  }> {
-    try {
-      const { data, error } = await this.supabase
-        .from('workflow_edges')
-        .insert({
-          id: edge.id,
-          workflow_id: workflowId,
-          source: edge.source,
-          target: edge.target,
-          source_handle: edge.source_handle ?? null,
-          target_handle: edge.target_handle ?? null,
-          type: edge.type ?? null,
-          data: (edge.data as Json) ?? null,
-        })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('Error creating workflow edge:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true, edge: data }
-    } catch (error) {
-      console.error('Error creating workflow edge:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  /**
-   * Create multiple workflow edges
-   * @param workflowId - Workflow ID
-   * @param edges - Array of edges to create
-   * @returns Success result with created edges or error
-   */
-  async createEdges(
-    workflowId: string,
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      source_handle?: string
-      target_handle?: string
-      type?: string
-      data?: Json
-    }>
-  ): Promise<{
-    success: boolean
-    edges?: WorkflowEdgeTable[]
-    error?: string
-  }> {
-    try {
-      const edgesToInsert = edges.map((edge) => ({
-        id: edge.id,
-        workflow_id: workflowId,
-        source: edge.source,
-        target: edge.target,
-        source_handle: edge.source_handle ?? null,
-        target_handle: edge.target_handle ?? null,
-        type: edge.type ?? null,
-        data: (edge.data as Json) ?? null,
-      }))
-
-      const { data, error } = await this.supabase
-        .from('workflow_edges')
-        .insert(edgesToInsert)
-        .select()
-
-      if (error) {
-        console.error('Error creating workflow edges:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true, edges: data }
-    } catch (error) {
-      console.error('Error creating workflow edges:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  /**
-   * Delete a single workflow edge
-   * @param edgeId - Edge ID to delete
-   * @returns Success result or error
-   */
-  async deleteEdge(edgeId: string): Promise<{
-    success: boolean
-    error?: string
-  }> {
-    try {
-      const { error } = await this.supabase
-        .from('workflow_edges')
-        .delete()
-        .eq('id', edgeId)
-
-      if (error) {
-        console.error('Error deleting workflow edge:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Error deleting workflow edge:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  /**
-   * Delete workflow edges
-   * @param edgeIds - Array of edge IDs to delete
-   * @returns Success result or error
-   */
-  async deleteEdges(edgeIds: string[]): Promise<{
-    success: boolean
-    error?: string
-  }> {
-    try {
-      const { error } = await this.supabase
-        .from('workflow_edges')
-        .delete()
-        .in('id', edgeIds)
-
-      if (error) {
-        console.error('Error deleting workflow edges:', error)
-        return { success: false, error: error.message }
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Error deleting workflow edges:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+    return {
+      ...newWorkflow,
+      nodes: newNodes,
+      edges: newEdges,
     }
   }
 }
