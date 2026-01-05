@@ -3,13 +3,13 @@
 import * as React from 'react'
 import { type NodeProps } from '@xyflow/react'
 import {
-  Node,
-  NodeHeader,
-  NodeTitle,
-  NodeDescription,
-  NodeContent,
-  NodeFooter,
-} from '@/components/ai-elements/node'
+  WorkflowNodeBase,
+  WorkflowNodeHeader,
+  WorkflowNodeTitle,
+  WorkflowNodeDescription,
+  WorkflowNodeContent,
+  WorkflowNodeFooter,
+} from '@/components/workflow-node-base'
 import { Button } from '@/components/ui/button'
 import { Edit, Trash2 } from 'lucide-react'
 
@@ -30,21 +30,21 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   const showSource = nodeData.handles?.source !== false
 
   return (
-    <Node
+    <WorkflowNodeBase
       handles={{
         target: showTarget,
         source: showSource,
       }}
       className={`min-w-[250px] ${selected ? 'ring-2 ring-primary' : ''}`}
     >
-      <NodeHeader className="pb-3 bg-secondary/50">
+      <WorkflowNodeHeader className="pb-3 bg-secondary/50">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <NodeTitle className="text-sm font-medium">{nodeData.label}</NodeTitle>
+            <WorkflowNodeTitle className="text-sm font-medium">{nodeData.label}</WorkflowNodeTitle>
             {nodeData.description && (
-              <NodeDescription className="text-xs mt-1">
+              <WorkflowNodeDescription className="text-xs mt-1">
                 {nodeData.description}
-              </NodeDescription>
+              </WorkflowNodeDescription>
             )}
           </div>
           <div className="flex gap-1">
@@ -56,19 +56,19 @@ export function WorkflowNode({ data, selected }: NodeProps) {
             </Button>
           </div>
         </div>
-      </NodeHeader>
+      </WorkflowNodeHeader>
 
       {nodeData.content && (
-        <NodeContent className="pb-3">
+        <WorkflowNodeContent className="pb-3">
           <p className="text-xs text-muted-foreground">{nodeData.content}</p>
-        </NodeContent>
+        </WorkflowNodeContent>
       )}
 
       {nodeData.footer && (
-        <NodeFooter className="pt-0 bg-transparent border-t-0">
+        <WorkflowNodeFooter className="pt-0 bg-transparent border-t-0">
           <p className="text-xs text-muted-foreground">{nodeData.footer}</p>
-        </NodeFooter>
+        </WorkflowNodeFooter>
       )}
-    </Node>
+    </WorkflowNodeBase>
   )
 }

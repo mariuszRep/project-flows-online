@@ -9,7 +9,7 @@ import {
   useInternalNode,
 } from "@xyflow/react";
 
-const Temporary = ({
+const WorkflowTemporaryEdge = ({
   id,
   sourceX,
   sourceY,
@@ -29,11 +29,11 @@ const Temporary = ({
 
   return (
     <BaseEdge
-      className="stroke-2 stroke-muted-foreground/50"
+      className="stroke-1 stroke-ring"
       id={id}
       path={edgePath}
       style={{
-        strokeDasharray: "8, 4",
+        strokeDasharray: "5, 5",
       }}
     />
   );
@@ -102,7 +102,7 @@ const getEdgeParams = (
   };
 };
 
-const Animated = ({ id, source, target, markerEnd, style }: EdgeProps) => {
+const WorkflowAnimatedEdge = ({ id, source, target, markerEnd, style }: EdgeProps) => {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
@@ -126,21 +126,15 @@ const Animated = ({ id, source, target, markerEnd, style }: EdgeProps) => {
 
   return (
     <>
-      <BaseEdge 
-        id={id} 
-        markerEnd={markerEnd} 
-        path={edgePath} 
-        style={style}
-        className="stroke-2 stroke-foreground"
-      />
-      <circle fill="var(--primary)" r="3" className="drop-shadow-sm">
-        <animateMotion dur="3s" path={edgePath} repeatCount="indefinite" />
+      <BaseEdge id={id} markerEnd={markerEnd} path={edgePath} style={style} />
+      <circle fill="var(--primary)" r="4">
+        <animateMotion dur="2s" path={edgePath} repeatCount="indefinite" />
       </circle>
     </>
   );
 };
 
-export const Edge = {
-  Temporary,
-  Animated,
+export const WorkflowEdge = {
+  Temporary: WorkflowTemporaryEdge,
+  Animated: WorkflowAnimatedEdge,
 };

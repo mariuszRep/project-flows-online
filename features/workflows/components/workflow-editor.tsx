@@ -17,11 +17,11 @@ import {
   useReactFlow,
   ReactFlowProvider,
 } from '@xyflow/react'
-import { Canvas } from '@/components/ai-elements/canvas'
-import { Edge as EdgeComponent } from '@/components/ai-elements/edge'
-import { Controls, ControlButton } from '@/components/ai-elements/controls'
-import { MiniMap } from '@/components/ai-elements/minimap'
-import { Panel } from '@/components/ai-elements/panel'
+import { WorkflowCanvas } from '@/components/workflow-canvas'
+import { WorkflowEdge } from '@/components/workflow-edge'
+import { WorkflowControls, WorkflowControlButton } from '@/components/workflow-controls'
+import { WorkflowMiniMap } from '@/components/workflow-minimap'
+import { WorkflowPanel } from '@/components/workflow-panel'
 import { WorkflowNode, type WorkflowNodeData } from './workflow-node'
 import { WorkflowNodePalette } from './workflow-node-palette'
 import { WorkflowEditDrawer } from './workflow-edit-drawer'
@@ -47,7 +47,7 @@ const nodeTypes = {
 import { TemporaryEdge } from './custom-edges'
 
 const edgeTypes = {
-  animated: EdgeComponent.Animated,
+  animated: WorkflowEdge.Animated,
   temporary: TemporaryEdge,
 }
 
@@ -513,7 +513,7 @@ function WorkflowEditorInner({
           onDragOver={onDragOver}
           onDrop={onDrop}
         >
-          <Canvas
+          <WorkflowCanvas
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -530,17 +530,17 @@ function WorkflowEditorInner({
             fitView
             className="bg-background"
           >
-            <Controls
+            <WorkflowControls
               orientation="horizontal"
               showInteractive={true}
               className="!absolute !bottom-8 !left-1/2 !-translate-x-1/2 z-50 shadow-lg"
             >
-              <ControlButton onClick={() => setShowMiniMap(!showMiniMap)}>
+              <WorkflowControlButton onClick={() => setShowMiniMap(!showMiniMap)}>
                 <MapIcon className="h-4 w-4" />
-              </ControlButton>
-            </Controls>
-            {showMiniMap && <MiniMap />}
-            <Panel position="top-right" className="flex gap-2">
+              </WorkflowControlButton>
+            </WorkflowControls>
+            {showMiniMap && <WorkflowMiniMap />}
+            <WorkflowPanel position="top-right" className="flex gap-2">
               {workflowId && (
                 <Button
                   onClick={handleEditWorkflow}
@@ -561,7 +561,7 @@ function WorkflowEditorInner({
                 <Save className="h-4 w-4 mr-2" />
                 {isSaving ? 'Saving...' : workflowId ? 'Save Changes' : 'Save Workflow'}
               </Button>
-            </Panel>
+            </WorkflowPanel>
 
             <WorkflowEditDrawer
               open={drawerOpen}
@@ -573,7 +573,7 @@ function WorkflowEditorInner({
               isSaving={isSaving}
               paletteExpanded={paletteExpanded}
             />
-          </Canvas>
+          </WorkflowCanvas>
         </div>
       </SidebarInset>
     </SidebarProvider>
