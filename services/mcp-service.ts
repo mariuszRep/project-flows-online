@@ -3,6 +3,7 @@ import * as z from "zod";
 import { AuthContext } from "@/lib/mcp/auth-context";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { convertNodeToSchema, canRegisterAsTool, sanitizeToolName } from "@/lib/mcp/schema-converter";
+import { WorkflowExecutor } from "@/lib/mcp/workflow-executor";
 
 interface WorkflowTool {
   id: string;
@@ -147,6 +148,9 @@ export async function createMcpServer(authContext?: AuthContext): Promise<McpSer
   // Dynamically load and register workflow tools
   const workflowTools = await loadToolsFromDatabase(authContext);
 
+  // Create workflow executor instance
+  const executor = new WorkflowExecutor();
+
   for (const tool of workflowTools) {
     server.registerTool(
       tool.name,
@@ -156,22 +160,28 @@ export async function createMcpServer(authContext?: AuthContext): Promise<McpSer
         inputSchema: tool.inputSchema,
       },
       async ({ ...params }) => {
-        // TODO: Task 1482 - Implement workflow execution
-        // For now, return placeholder response
+        if (!authContext) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  success: false,
+                  error: "Authentication required",
+                }),
+              },
+            ],
+          };
+        }
+
+        // Execute the workflow
+        const result = await executor.executeWorkflow(tool.id, params, authContext);
+
         return {
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  message: "Workflow execution not yet implemented (Task 1482)",
-                  workflowId: tool.id,
-                  params,
-                },
-                null,
-                2
-              ),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
