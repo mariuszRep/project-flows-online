@@ -94,8 +94,9 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
 
     // Step 3: Create transport and server per request (stateless mode)
     // Pass authContext to enable organization-scoped data filtering in tools
+    // Dynamically loads published workflows as MCP tools
     const transport = new WebStandardStreamableHTTPServerTransport();
-    const server = createMcpServer(authContext);
+    const server = await createMcpServer(authContext);
 
     // Connect server to transport
     await server.connect(transport);
