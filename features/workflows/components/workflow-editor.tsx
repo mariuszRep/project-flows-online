@@ -46,6 +46,7 @@ import {
   deleteEdge as deleteEdgeAction,
 } from '../workflow-actions'
 import { toast } from 'sonner'
+import { useWorkspaceBreadcrumbs } from '@/features/workspaces/components/workspace-client'
 
 const nodeTypes = {
   workflow: WorkflowNode,
@@ -160,6 +161,17 @@ function WorkflowEditorInner({
   )
   const [showMiniMap, setShowMiniMap] = React.useState(true)
   const [paletteExpanded, setPaletteExpanded] = React.useState(false)
+  const { setExtraBreadcrumbs, resetExtraBreadcrumbs } = useWorkspaceBreadcrumbs()
+
+  React.useEffect(() => {
+    const label = workflowId ? workflowName || 'Workflow' : 'New Workflow'
+    if (workflowId && workflowName && typeof window !== 'undefined') {
+      sessionStorage.setItem(`workflowName:${workflowId}`, workflowName)
+    }
+    setExtraBreadcrumbs([{ label }])
+
+    return () => resetExtraBreadcrumbs()
+  }, [workflowId, workflowName, setExtraBreadcrumbs, resetExtraBreadcrumbs])
 
   const onNodesChange: OnNodesChange = React.useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds) as Node<WorkflowNodeData>[]),

@@ -11,14 +11,7 @@ export default async function CreateWorkflowPage({ params }: CreateWorkflowPageP
   const { organizationId, workspaceId } = await params
 
   return (
-    <div className="container mx-auto flex flex-1 flex-col gap-4 p-4 pt-0 max-w-7xl">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight">Create Workflow</h2>
-        <p className="text-sm text-muted-foreground">
-          Design your workflow by adding and connecting nodes
-        </p>
-      </div>
-
+    <div className="flex flex-1 flex-col h-[calc(100vh-4rem)] p-2 pt-0">
       <WorkflowEditor organizationId={organizationId} workspaceId={workspaceId} />
     </div>
   )
