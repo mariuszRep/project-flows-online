@@ -44,12 +44,36 @@ export class ConnectionValidator {
       throw new Error('Invalid or expired connection token');
     }
 
+    // CRITICAL: Verify user still has access to the organization
+    // Prevents revoked members from using old tokens
+    const { data: permission, error: permError } = await supabase
+      .from('permissions')
+      .select('id')
+      .eq('principal_id', connection.user_id)
+      .eq('principal_type', 'user')
+      .eq('org_id', connection.organization_id)
+      .is('deleted_at', null)
+      .single();
+
+    if (permError || !permission) {
+      // User no longer has org access - auto-revoke the token
+      await supabase
+        .from('mcp_connections')
+        .update({
+          revoked_at: new Date().toISOString(),
+          is_connected: false
+        })
+        .eq('id', connection.id);
+
+      throw new Error('Connection token revoked: user no longer has organization access');
+    }
+
     // Update last_used_at
     await supabase
       .from('mcp_connections')
-      .update({ 
+      .update({
         last_used_at: new Date().toISOString(),
-        is_connected: true 
+        is_connected: true
       })
       .eq('id', connection.id);
 

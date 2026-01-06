@@ -24,18 +24,36 @@ export function validateOrigin(request: NextRequest): boolean {
     }
   }
 
-  // DNS rebinding protection: validate Host header
-  // For localhost development, allow localhost with any port
-  if (host) {
-    const isLocalhost = host.startsWith('localhost:') || host === 'localhost';
-    const expectedHost = process.env.MCP_EXPECTED_HOST;
+  // CRITICAL: DNS rebinding protection - validate Host header
+  // Default to request host if MCP_EXPECTED_HOST not set (fail-safe for production)
+  const expectedHost = process.env.MCP_EXPECTED_HOST || host;
 
-    // In production, validate against expected host
-    if (expectedHost && !isLocalhost) {
-      if (host !== expectedHost) {
-        return false;
-      }
+  if (!expectedHost) {
+    // Missing both env and host header - reject
+    return false;
+  }
+
+  if (host) {
+    // Allow localhost variations in development
+    const isLocalhost = host.startsWith('localhost:') || host === 'localhost' ||
+                       host.startsWith('127.0.0.1:') || host === '127.0.0.1';
+    const expectedIsLocalhost = expectedHost.startsWith('localhost:') || expectedHost === 'localhost';
+
+    // In development (localhost), be more permissive with ports
+    if (isLocalhost && expectedIsLocalhost) {
+      return true;
     }
+
+    // In production or when expected host is set, require exact match
+    if (host !== expectedHost) {
+      console.warn(`[Security] Host mismatch: got "${host}", expected "${expectedHost}"`);
+      return false;
+    }
+  } else {
+    // Missing host header - MCP clients should always send this
+    // Some proxies might strip it, but we require it for security
+    console.warn('[Security] Missing Host header - rejecting request');
+    return false;
   }
 
   return true;

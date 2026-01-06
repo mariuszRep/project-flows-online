@@ -6,15 +6,19 @@ import { AuthContext } from "@/lib/mcp/auth-context";
 
 /**
  * Gets CORS headers for MCP endpoint
+ * Properly reflects the validated origin per-request (multiple origins in one header is invalid)
  */
-function getCorsHeaders() {
-  const allowedOrigins = process.env.MCP_ALLOWED_ORIGINS || "*";
+function getCorsHeaders(validatedOrigin?: string) {
+  // Reflect the validated origin, or default to first allowed origin
+  const allowedOrigins = process.env.MCP_ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
+  const origin = validatedOrigin || allowedOrigins[0] || "*";
 
   return {
-    "Access-Control-Allow-Origin": allowedOrigins,
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, mcp-session-id, Last-Event-ID, mcp-protocol-version",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, mcp-session-id, Last-Event-ID, mcp-protocol-version",
     "Access-Control-Expose-Headers": "mcp-session-id, mcp-protocol-version",
+    "Access-Control-Allow-Credentials": "true",
   };
 }
 
@@ -45,7 +49,7 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
           status: 403,
           headers: {
             "Content-Type": "application/json",
-            ...getCorsHeaders(),
+            ...getCorsHeaders(origin || undefined),
           },
         }
       );
@@ -82,7 +86,7 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
           headers: {
             "Content-Type": "application/json",
             "WWW-Authenticate": 'Bearer realm="MCP", error="invalid_token", error_description="' + errorMessage + '"',
-            ...getCorsHeaders(),
+            ...getCorsHeaders(origin || undefined),
           },
         }
       );
@@ -99,8 +103,8 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     // Handle the request using Web Standard Request API
     const response = await transport.handleRequest(request);
 
-    // Add CORS headers to the response
-    const corsHeaders = getCorsHeaders();
+    // Add CORS headers to the response (reflect validated origin)
+    const corsHeaders = getCorsHeaders(origin || undefined);
     Object.entries(corsHeaders).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
