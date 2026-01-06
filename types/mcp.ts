@@ -13,3 +13,16 @@ export interface FunctionResult {
   data?: any;
   error?: string;
 }
+
+/**
+ * JWT claims interface for validated authentication tokens
+ * Used throughout MCP request lifecycle for authorization
+ */
+export interface JWTClaims {
+  sub: string;
+  aud: string | string[];
+  exp: number;
+  organization_id?: string;
+  scopes?: string[];
+  [key: string]: any;
+}
