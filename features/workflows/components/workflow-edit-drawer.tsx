@@ -16,6 +16,10 @@ import { cn } from '@/lib/utils'
 import { Trash2 } from 'lucide-react'
 import type { Node, Edge } from '@xyflow/react'
 import type { WorkflowNodeData } from './workflow-node'
+import { ActionSelector } from './action-selector'
+import { ActionParametersForm } from './action-parameters-form'
+import { getAvailableActions } from '../workflow-actions'
+import type { ActionMetadata } from '@/types/actions'
 
 type EditType = 'workflow' | 'node' | 'edge'
 
@@ -49,6 +53,27 @@ export function WorkflowEditDrawer({
   paletteExpanded = false,
 }: WorkflowEditDrawerProps) {
   const [formData, setFormData] = React.useState<any>({})
+  const [availableActions, setAvailableActions] = React.useState<ActionMetadata[]>([])
+  const [isLoadingActions, setIsLoadingActions] = React.useState(false)
+
+  // Load available actions on mount
+  React.useEffect(() => {
+    const loadActions = async () => {
+      setIsLoadingActions(true)
+      try {
+        const result = await getAvailableActions()
+        if (result.success && result.actions) {
+          setAvailableActions(result.actions)
+        }
+      } catch (error) {
+        console.error('Failed to load actions:', error)
+      } finally {
+        setIsLoadingActions(false)
+      }
+    }
+
+    loadActions()
+  }, [])
 
   // Initialize form data when drawer opens or data changes
   React.useEffect(() => {
@@ -64,6 +89,8 @@ export function WorkflowEditDrawer({
           description: data.node.data.description || '',
           content: data.node.data.content || '',
           footer: data.node.data.footer || '',
+          action_id: data.node.data.action_id || '',
+          parameters: data.node.data.parameters || {},
         })
       } else if (editType === 'edge' && data.edge) {
         setFormData({
@@ -112,47 +139,84 @@ export function WorkflowEditDrawer({
     </div>
   )
 
-  const renderNodeForm = () => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="node-label">Label</Label>
-        <Input
-          id="node-label"
-          placeholder="Node Label"
-          value={formData.label || ''}
-          onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-        />
+  const renderNodeForm = () => {
+    const nodeType = data?.node?.type
+    const isProcessNode = nodeType === 'process'
+
+    // Get the current action metadata
+    const currentActionMetadata = formData.action_id
+      ? availableActions.find((a) => a.id === formData.action_id)
+      : undefined
+
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="node-label">Label</Label>
+          <Input
+            id="node-label"
+            placeholder="Node Label"
+            value={formData.label || ''}
+            onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="node-description">Description</Label>
+          <Input
+            id="node-description"
+            placeholder="Node description"
+            value={formData.description || ''}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          />
+        </div>
+
+        {/* Show action selector only for process nodes */}
+        {isProcessNode && (
+          <>
+            {isLoadingActions ? (
+              <div className="text-sm text-muted-foreground">Loading actions...</div>
+            ) : (
+              <ActionSelector
+                value={formData.action_id}
+                onChange={(actionId) =>
+                  setFormData({ ...formData, action_id: actionId, parameters: {} })
+                }
+                availableActions={availableActions}
+              />
+            )}
+
+            {/* Show parameters form if action is selected */}
+            {formData.action_id && currentActionMetadata && (
+              <ActionParametersForm
+                actionMetadata={currentActionMetadata}
+                parameters={formData.parameters || {}}
+                onChange={(parameters) => setFormData({ ...formData, parameters })}
+              />
+            )}
+          </>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="node-content">Content</Label>
+          <Textarea
+            id="node-content"
+            placeholder="Node content"
+            value={formData.content || ''}
+            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+            rows={3}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="node-footer">Footer</Label>
+          <Input
+            id="node-footer"
+            placeholder="Node footer"
+            value={formData.footer || ''}
+            onChange={(e) => setFormData({ ...formData, footer: e.target.value })}
+          />
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="node-description">Description</Label>
-        <Input
-          id="node-description"
-          placeholder="Node description"
-          value={formData.description || ''}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="node-content">Content</Label>
-        <Textarea
-          id="node-content"
-          placeholder="Node content"
-          value={formData.content || ''}
-          onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-          rows={3}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="node-footer">Footer</Label>
-        <Input
-          id="node-footer"
-          placeholder="Node footer"
-          value={formData.footer || ''}
-          onChange={(e) => setFormData({ ...formData, footer: e.target.value })}
-        />
-      </div>
-    </div>
-  )
+    )
+  }
 
   const renderEdgeForm = () => (
     <div className="space-y-4">

@@ -41,3 +41,25 @@ export type ActionFunction = (
 export interface ActionModule {
   default: ActionFunction;
 }
+
+/**
+ * Schema definition for action parameters
+ */
+export interface ActionParameterSchema {
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description?: string;
+  default?: any;
+  required?: boolean;
+}
+
+/**
+ * Metadata for UI display and parameter configuration
+ */
+export interface ActionMetadata {
+  id: string;
+  name: string;
+  description: string;
+  inputSchema: {
+    properties: Record<string, ActionParameterSchema>;
+  };
+}

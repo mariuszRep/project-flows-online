@@ -11,6 +11,7 @@ import {
   WorkflowNodeFooter,
 } from '@/components/workflow-node-base'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Edit, Trash2 } from 'lucide-react'
 
 export interface WorkflowNodeData extends Record<string, unknown> {
@@ -18,6 +19,8 @@ export interface WorkflowNodeData extends Record<string, unknown> {
   description?: string
   content?: string
   footer?: string
+  action_id?: string
+  parameters?: Record<string, any>
   handles?: {
     target?: boolean
     source?: boolean
@@ -45,6 +48,13 @@ export function WorkflowNode({ data, selected }: NodeProps) {
               <WorkflowNodeDescription className="text-xs mt-1">
                 {nodeData.description}
               </WorkflowNodeDescription>
+            )}
+            {nodeData.action_id && (
+              <div className="mt-2">
+                <Badge variant="secondary" className="text-xs">
+                  {nodeData.action_id.replace(/-/g, ' ')}
+                </Badge>
+              </div>
             )}
           </div>
           <div className="flex gap-1">
