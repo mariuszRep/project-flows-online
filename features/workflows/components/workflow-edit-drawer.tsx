@@ -31,6 +31,7 @@ interface WorkflowEditDrawerProps {
     // For workflow editing
     name?: string
     description?: string
+    status?: 'draft' | 'published' | 'archived'
     // For node editing
     node?: Node<WorkflowNodeData>
     // For edge editing
@@ -82,6 +83,7 @@ export function WorkflowEditDrawer({
         setFormData({
           name: data.name || '',
           description: data.description || '',
+          status: data.status || 'draft',
         })
       } else if (editType === 'node' && data.node) {
         setFormData({
@@ -136,11 +138,29 @@ export function WorkflowEditDrawer({
           rows={4}
         />
       </div>
+      <div className="space-y-2">
+        <Label htmlFor="workflow-status">Status</Label>
+        <Select
+          value={formData.status || 'draft'}
+          onValueChange={(value) => setFormData({ ...formData, status: value })}
+        >
+          <SelectTrigger id="workflow-status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="archived">Archived</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Use the Publish button in the canvas to make this workflow available in MCP
+        </p>
+      </div>
     </div>
   )
 
   const renderNodeForm = () => {
-    const nodeType = data?.node?.type
+    const nodeType = data?.node?.data?.nodeType
     const isProcessNode = nodeType === 'process'
 
     // Get the current action metadata

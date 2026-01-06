@@ -26,6 +26,13 @@ import { WorkflowNode, type WorkflowNodeData } from './workflow-node'
 import { WorkflowNodePalette } from './workflow-node-palette'
 import { WorkflowEditDrawer } from './workflow-edit-drawer'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Edit, Save, Map as MapIcon, PanelLeft } from 'lucide-react'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import {
@@ -56,6 +63,7 @@ const getNodeConfig = (type: string): Partial<WorkflowNodeData> => {
   switch (type) {
     case 'start':
       return {
+        nodeType: 'start',
         label: 'Start',
         description: 'Workflow entry point',
         content: 'This is where the workflow begins',
@@ -64,6 +72,7 @@ const getNodeConfig = (type: string): Partial<WorkflowNodeData> => {
       }
     case 'process':
       return {
+        nodeType: 'process',
         label: 'Process',
         description: 'Execute an action or task',
         content: 'Add processing logic here',
@@ -72,6 +81,7 @@ const getNodeConfig = (type: string): Partial<WorkflowNodeData> => {
       }
     case 'decision':
       return {
+        nodeType: 'decision',
         label: 'Decision',
         description: 'Conditional branching',
         content: 'Add decision logic here',
@@ -80,6 +90,7 @@ const getNodeConfig = (type: string): Partial<WorkflowNodeData> => {
       }
     case 'end':
       return {
+        nodeType: 'end',
         label: 'End',
         description: 'Workflow completion',
         content: 'Workflow ends here',
@@ -101,6 +112,7 @@ const initialNodesDefault: Node<WorkflowNodeData>[] = [
     type: 'workflow',
     position: { x: 250, y: 50 },
     data: {
+      nodeType: 'start',
       label: 'Start',
       description: 'Workflow entry point',
       content: 'This is where the workflow begins',
@@ -143,6 +155,9 @@ function WorkflowEditorInner({
   const [drawerData, setDrawerData] = React.useState<any>(null)
   const [workflowName, setWorkflowName] = React.useState(initialData?.workflow.name || '')
   const [workflowDescription, setWorkflowDescription] = React.useState(initialData?.workflow.description || '')
+  const [workflowStatus, setWorkflowStatus] = React.useState<'draft' | 'published' | 'archived'>(
+    (initialData?.workflow as any)?.status || 'draft'
+  )
   const [showMiniMap, setShowMiniMap] = React.useState(true)
   const [paletteExpanded, setPaletteExpanded] = React.useState(false)
 
@@ -318,6 +333,7 @@ function WorkflowEditorInner({
     setDrawerData({
       name: workflowName,
       description: workflowDescription,
+      status: workflowStatus,
     })
     setDrawerOpen(true)
   }
@@ -352,6 +368,40 @@ function WorkflowEditorInner({
     }
   }
 
+  // Handle publish/unpublish toggle
+  const handleTogglePublish = async () => {
+    if (!workflowId) {
+      toast.error('Please save the workflow first')
+      return
+    }
+
+    const newStatus = workflowStatus === 'published' ? 'draft' : 'published'
+
+    setIsSaving(true)
+    try {
+      const result = await updateWorkflow(
+        workflowId,
+        undefined,
+        undefined,
+        newStatus,
+        organizationId,
+        workspaceId
+      )
+
+      if (result.success) {
+        setWorkflowStatus(newStatus)
+        toast.success(`Workflow ${newStatus === 'published' ? 'published' : 'unpublished'} successfully`)
+      } else {
+        toast.error(result.error || 'Failed to update workflow status')
+      }
+    } catch (error) {
+      console.error('Failed to update workflow status:', error)
+      toast.error('Failed to update workflow status')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   // Handle drawer save based on type
   const handleDrawerSave = async (formData: any) => {
     setIsSaving(true)
@@ -363,13 +413,14 @@ function WorkflowEditorInner({
             workflowId,
             formData.name,
             formData.description,
-            undefined,
+            formData.status,
             organizationId,
             workspaceId
           )
           if (result.success) {
             setWorkflowName(formData.name)
             setWorkflowDescription(formData.description)
+            setWorkflowStatus(formData.status || 'draft')
             toast.success('Workflow updated successfully')
             setDrawerOpen(false)
           } else {
@@ -542,15 +593,26 @@ function WorkflowEditorInner({
             {showMiniMap && <WorkflowMiniMap />}
             <WorkflowPanel position="top-right" className="flex gap-2">
               {workflowId && (
-                <Button
-                  onClick={handleEditWorkflow}
-                  size="sm"
-                  variant="outline"
-                  className="shadow-lg"
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit Workflow
-                </Button>
+                <>
+                  <Button
+                    onClick={handleTogglePublish}
+                    size="sm"
+                    variant={workflowStatus === 'published' ? 'default' : 'outline'}
+                    className="shadow-lg"
+                    disabled={isSaving || workflowStatus === 'archived'}
+                  >
+                    {workflowStatus === 'published' ? 'Unpublish' : 'Publish'}
+                  </Button>
+                  <Button
+                    onClick={handleEditWorkflow}
+                    size="sm"
+                    variant="outline"
+                    className="shadow-lg"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Workflow
+                  </Button>
+                </>
               )}
               <Button
                 onClick={workflowId ? handleSaveChanges : handleEditWorkflow}

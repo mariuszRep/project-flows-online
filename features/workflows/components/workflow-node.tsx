@@ -19,6 +19,7 @@ export interface WorkflowNodeData extends Record<string, unknown> {
   description?: string
   content?: string
   footer?: string
+  nodeType?: 'start' | 'process' | 'decision' | 'end'
   action_id?: string
   parameters?: Record<string, any>
   handles?: {
