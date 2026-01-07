@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { AuthContext } from "@/lib/mcp/auth-context";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { convertNodeToSchema, canRegisterAsTool, sanitizeToolName } from "@/lib/mcp/schema-converter";
+import { convertNodeToSchema, convertJsonSchemaToZod, canRegisterAsTool, sanitizeToolName } from "@/lib/mcp/schema-converter";
 import { WorkflowExecutor } from "@/lib/mcp/workflow-executor";
 
 interface WorkflowTool {
@@ -34,6 +34,7 @@ async function loadToolsFromDatabase(authContext?: AuthContext): Promise<Workflo
         id,
         name,
         description,
+        status,
         workflow_nodes!inner(
           id,
           type,
@@ -48,20 +49,30 @@ async function loadToolsFromDatabase(authContext?: AuthContext): Promise<Workflo
       return [];
     }
 
+    console.log(`[MCP] Query returned ${workflows?.length || 0} workflows`);
+    console.log(`[MCP] Workflows data:`, JSON.stringify(workflows, null, 2));
+
     if (!workflows || workflows.length === 0) {
+      console.warn('[MCP] No workflows found for organization', organizationId);
       return [];
     }
 
     const tools: WorkflowTool[] = [];
 
     for (const workflow of workflows) {
+      console.log(`[MCP] Processing workflow: ${workflow.name} (${workflow.id})`);
+      console.log(`[MCP]   - Description: ${workflow.description || 'MISSING'}`);
+
       // Validate workflow can be registered
       if (!canRegisterAsTool(workflow)) {
+        console.warn(`[MCP] Workflow ${workflow.id} failed canRegisterAsTool validation`);
         continue;
       }
 
       // Find start node
       const nodes = (workflow as any).workflow_nodes;
+      console.log(`[MCP]   - Nodes count: ${nodes?.length || 0}`);
+      console.log(`[MCP]   - Node types: ${nodes?.map((n: any) => n.type).join(', ') || 'none'}`);
       const startNode = nodes?.find((node: any) => node.type === 'start');
 
       if (!startNode) {
@@ -69,14 +80,17 @@ async function loadToolsFromDatabase(authContext?: AuthContext): Promise<Workflo
         continue;
       }
 
-      // Convert node parameters to JSON Schema
-      const inputSchema = convertNodeToSchema(startNode.data);
+      console.log(`[MCP]   - Found start node: ${startNode.id}`);
+
+      // Convert node parameters to JSON Schema, then to Zod
+      const jsonSchema = convertNodeToSchema(startNode.data);
+      const zodSchema = convertJsonSchemaToZod(jsonSchema);
 
       tools.push({
         id: workflow.id,
         name: sanitizeToolName(workflow.name),
         description: workflow.description || '',
-        inputSchema,
+        inputSchema: zodSchema,
       });
     }
 

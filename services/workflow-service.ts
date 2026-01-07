@@ -90,9 +90,12 @@ export class WorkflowService {
 
       const nodes: WorkflowCanvasNode[] = (nodeData || []).map((node) => ({
         id: node.id,
-        type: node.type,
+        type: 'workflow', // Always use 'workflow' type to use custom WorkflowNode component
         position: { x: node.position_x, y: node.position_y },
-        data: (node.data || { label: 'Untitled' }) as WorkflowNodeData,
+        data: {
+          ...(node.data || { label: 'Untitled' }) as WorkflowNodeData,
+          nodeType: node.type, // Store the actual node type in data.nodeType
+        },
         width: node.width ?? undefined,
         height: node.height ?? undefined,
       }))
@@ -307,7 +310,7 @@ export class WorkflowService {
         const nodesToInsert = nodes.map((node) => ({
           id: node.id,
           workflow_id: workflowId,
-          type: node.type || 'default',
+          type: (node.data as any)?.nodeType || node.type || 'default', // Use data.nodeType first, then fallback
           position_x: node.position.x,
           position_y: node.position.y,
           data: (node.data || {}) as Json,

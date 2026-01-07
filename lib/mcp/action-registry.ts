@@ -29,9 +29,8 @@ export class ActionRegistry {
 
     try {
       // Dynamically import the action module
-      // Path is relative to actions/ directory
-      const fullPath = `/actions${modulePath.replace('./', '/')}`;
-      const module: ActionModule = await import(`@${fullPath}`);
+      // Use the module path directly with the actions alias
+      const module: ActionModule = await import(`@/actions/${modulePath.replace('./', '')}`);
 
       if (!module.default || typeof module.default !== 'function') {
         throw new Error(`Action '${actionId}' does not export a default function`);

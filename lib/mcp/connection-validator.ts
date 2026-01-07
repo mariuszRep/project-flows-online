@@ -46,26 +46,23 @@ export class ConnectionValidator {
 
     // CRITICAL: Verify user still has access to the organization
     // Prevents revoked members from using old tokens
-    const { data: permission, error: permError } = await supabase
+    const { data: permissions, error: permError } = await supabase
       .from('permissions')
       .select('id')
       .eq('principal_id', connection.user_id)
       .eq('principal_type', 'user')
       .eq('org_id', connection.organization_id)
-      .is('deleted_at', null)
-      .single();
+      .is('deleted_at', null);
 
-    if (permError || !permission) {
-      // User no longer has org access - auto-revoke the token
-      await supabase
-        .from('mcp_connections')
-        .update({
-          revoked_at: new Date().toISOString(),
-          is_connected: false
-        })
-        .eq('id', connection.id);
+    // Check if query failed (not just empty results)
+    if (permError) {
+      console.error('Permission check failed:', permError);
+      throw new Error('Failed to verify organization access');
+    }
 
-      throw new Error('Connection token revoked: user no longer has organization access');
+    // Check if user has any active permissions for this organization
+    if (!permissions || permissions.length === 0) {
+      throw new Error('User does not have access to this organization');
     }
 
     // Update last_used_at

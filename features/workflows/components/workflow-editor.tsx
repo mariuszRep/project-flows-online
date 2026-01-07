@@ -402,7 +402,14 @@ function WorkflowEditorInner({
 
       if (result.success) {
         setWorkflowStatus(newStatus)
-        toast.success(`Workflow ${newStatus === 'published' ? 'published' : 'unpublished'} successfully`)
+        if (newStatus === 'published') {
+          toast.success('Workflow published successfully', {
+            description: 'Reconnect your MCP client to see this workflow as a new tool',
+            duration: 5000,
+          })
+        } else {
+          toast.success('Workflow unpublished successfully')
+        }
       } else {
         toast.error(result.error || 'Failed to update workflow status')
       }
