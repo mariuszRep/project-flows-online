@@ -4,6 +4,12 @@ import { createMcpServer } from "@/services/mcp-service";
 import { validateOrigin } from "@/lib/mcp/origin-validator";
 import { AuthContext } from "@/lib/mcp/auth-context";
 
+const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
+const SUPPORTED_PROTOCOL_VERSIONS = new Set([
+  "2025-03-26",
+  "2025-06-18",
+]);
+
 /**
  * Gets CORS headers for MCP endpoint
  * Properly reflects the validated origin per-request (multiple origins in one header is invalid)
@@ -20,6 +26,67 @@ function getCorsHeaders(validatedOrigin?: string) {
     "Access-Control-Expose-Headers": "mcp-session-id, mcp-protocol-version",
     "Access-Control-Allow-Credentials": "true",
   };
+}
+
+function hasAcceptedType(acceptHeader: string, contentType: string): boolean {
+  return acceptHeader
+    .split(',')
+    .some((value) => value.trim().toLowerCase().startsWith(contentType));
+}
+
+function jsonRpcErrorResponse(
+  status: number,
+  message: string,
+  origin?: string,
+  data?: Record<string, unknown>
+) {
+  return new NextResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      error: {
+        code: -32600,
+        message,
+        data,
+      },
+    }),
+    {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        ...getCorsHeaders(origin),
+      },
+    }
+  );
+}
+
+function isJsonRpcNotification(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (record.jsonrpc !== "2.0" || typeof record.method !== "string") {
+    return false;
+  }
+
+  return !Object.prototype.hasOwnProperty.call(record, "id");
+}
+
+function isJsonRpcResponse(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (record.jsonrpc !== "2.0") {
+    return false;
+  }
+
+  const hasMethod = Object.prototype.hasOwnProperty.call(record, "method");
+  const hasResult = Object.prototype.hasOwnProperty.call(record, "result");
+  const hasError = Object.prototype.hasOwnProperty.call(record, "error");
+
+  return !hasMethod && (hasResult || hasError);
 }
 
 /**
@@ -53,6 +120,40 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
           },
         }
       );
+    }
+
+    const protocolVersionHeader = request.headers.get("mcp-protocol-version");
+    const protocolVersion = protocolVersionHeader || DEFAULT_PROTOCOL_VERSION;
+    if (protocolVersionHeader && !SUPPORTED_PROTOCOL_VERSIONS.has(protocolVersionHeader)) {
+      return jsonRpcErrorResponse(
+        400,
+        `Unsupported MCP-Protocol-Version: ${protocolVersionHeader}`,
+        origin || undefined
+      );
+    }
+
+    const acceptHeader = request.headers.get("accept") || "";
+    if (method === "POST") {
+      const hasJson = hasAcceptedType(acceptHeader, "application/json");
+      const hasSse = hasAcceptedType(acceptHeader, "text/event-stream");
+      if (!hasJson || !hasSse) {
+        return jsonRpcErrorResponse(
+          400,
+          "Accept header must include application/json and text/event-stream",
+          origin || undefined
+        );
+      }
+    }
+
+    if (method === "GET") {
+      const hasSse = hasAcceptedType(acceptHeader, "text/event-stream");
+      if (!hasSse) {
+        return jsonRpcErrorResponse(
+          400,
+          "Accept header must include text/event-stream",
+          origin || undefined
+        );
+      }
     }
 
     // Step 2: Validate connection token authentication
@@ -98,6 +199,22 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     const transport = new WebStandardStreamableHTTPServerTransport();
     const server = await createMcpServer(authContext);
 
+    let shouldReturnAccepted = false;
+    if (method === "POST") {
+      try {
+        const body = await request.clone().json();
+        if (!Array.isArray(body)) {
+          shouldReturnAccepted = isJsonRpcNotification(body) || isJsonRpcResponse(body);
+        }
+      } catch (error) {
+        return jsonRpcErrorResponse(
+          400,
+          "Invalid JSON body",
+          origin || undefined
+        );
+      }
+    }
+
     // Connect server to transport
     await server.connect(transport);
 
@@ -109,6 +226,17 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     Object.entries(corsHeaders).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
+    response.headers.set("mcp-protocol-version", protocolVersion);
+
+    if (shouldReturnAccepted && response.ok) {
+      return new NextResponse(null, {
+        status: 202,
+        headers: {
+          ...corsHeaders,
+          "mcp-protocol-version": protocolVersion,
+        },
+      });
+    }
 
     return response;
   } catch (error) {
