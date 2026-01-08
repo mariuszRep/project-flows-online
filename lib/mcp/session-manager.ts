@@ -282,6 +282,89 @@ export class SessionManager {
   }
 
   /**
+   * Finds an existing session for a specific connection
+   * Reuses active session for the same connection token to avoid duplicate sessions
+   *
+   * @param userId - User ID for key scoping
+   * @param connectionId - Connection ID from auth context
+   * @returns Session ID if found, otherwise null
+   */
+  static async findSessionForConnection(
+    userId: string,
+    connectionId: string
+  ): Promise<string | null> {
+    const kv = await getKV();
+    if (!kv) {
+      return null;
+    }
+
+    try {
+      const keys: string[] = [];
+      const matchPattern = `mcp_session:${userId}:*`;
+
+      if (typeof kv.scanIterator === 'function') {
+        for await (const key of kv.scanIterator({ match: matchPattern, count: 200 })) {
+          keys.push(String(key));
+        }
+      } else if (typeof kv.scan === 'function') {
+        let cursor = '0';
+        do {
+          // eslint-disable-next-line no-await-in-loop -- bounded scan loop
+          const [nextCursor, batch] = await kv.scan(cursor, { match: matchPattern, count: 200 });
+          cursor = nextCursor;
+          keys.push(...batch);
+        } while (cursor !== '0');
+      }
+
+      if (keys.length === 0) {
+        return null;
+      }
+
+      const values = typeof kv.mget === 'function'
+        ? await kv.mget(...keys)
+        : await Promise.all(keys.map((key) => kv.get(key)));
+
+      let newest: { sessionId: string; createdAt: number } | null = null;
+
+      values.forEach((value, index) => {
+        if (!value) {
+          return;
+        }
+
+        let sessionData: SessionData;
+        try {
+          if (typeof value === 'string') {
+            sessionData = JSON.parse(value) as SessionData;
+          } else {
+            sessionData = value as SessionData;
+          }
+        } catch (parseError) {
+          console.warn('[SessionManager] Failed to parse session data:', parseError);
+          return;
+        }
+
+        if (sessionData.connectionId !== connectionId) {
+          return;
+        }
+
+        const parsedKey = this.parseSessionKey(keys[index]);
+        if (!parsedKey) {
+          return;
+        }
+
+        if (!newest || sessionData.createdAt > newest.createdAt) {
+          newest = { sessionId: parsedKey.sessionId, createdAt: sessionData.createdAt };
+        }
+      });
+
+      return newest ? newest.sessionId : null;
+    } catch (error) {
+      console.error('[SessionManager] Failed to find session for connection:', error);
+      return null;
+    }
+  }
+
+  /**
    * Lists all sessions scoped to an organization
    */
   static async listSessionsByOrganization(organizationId: string): Promise<SessionRecord[]> {

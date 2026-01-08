@@ -308,15 +308,29 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
           );
         }
 
-        // Create new session for initialization without session ID
+        // Reuse existing session for the same connection when available
         try {
-          sessionId = await SessionManager.createSession(
-            userId,
-            organizationId,
-            authContext.getConnectionId(),
-            authContext.getConnectionName()
-          );
-          console.log(`[${timestamp}] Created new session ${sessionId} for user ${userId}`);
+          const connectionId = authContext.getConnectionId();
+          const connectionName = authContext.getConnectionName();
+          const existingSessionId = connectionId
+            ? await SessionManager.findSessionForConnection(userId, connectionId)
+            : null;
+
+          if (existingSessionId) {
+            sessionId = existingSessionId;
+            await SessionManager.extendSession(existingSessionId, userId);
+            console.log(
+              `[${timestamp}] Reusing existing session ${sessionId} for user ${userId} connection ${connectionId}`
+            );
+          } else {
+            sessionId = await SessionManager.createSession(
+              userId,
+              organizationId,
+              connectionId,
+              connectionName
+            );
+            console.log(`[${timestamp}] Created new session ${sessionId} for user ${userId}`);
+          }
         } catch (error) {
           console.error(`[${timestamp}] Failed to create session:`, error);
           return jsonRpcErrorResponse(
