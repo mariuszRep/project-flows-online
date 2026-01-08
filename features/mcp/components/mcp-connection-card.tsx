@@ -4,15 +4,15 @@ import { useState, useTransition } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { generateMCPToken } from '../mcp-actions';
 
 interface MCPConnectionCardProps {
   organizationId: string;
+  variant?: 'card' | 'dialog';
 }
 
-export function MCPConnectionCard({ organizationId }: MCPConnectionCardProps) {
+export function MCPConnectionCard({ organizationId, variant = 'card' }: MCPConnectionCardProps) {
   const [isPending, startTransition] = useTransition();
   const [tokenData, setTokenData] = useState<{
     token: string;
@@ -76,121 +76,127 @@ export function MCPConnectionCard({ organizationId }: MCPConnectionCardProps) {
     }
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Generate Connection Token</CardTitle>
-        <CardDescription>
-          Create a new token to connect MCP clients to this organization. Tokens expire after 90 days.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!tokenData ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="connection-name" className="text-sm font-medium">
-                Connection Name (Optional)
-              </label>
-              <Input
-                id="connection-name"
-                placeholder="My MCP Connection"
-                value={connectionName}
-                onChange={(e) => setConnectionName(e.target.value)}
-                disabled={isPending}
-              />
-            </div>
-            <Button onClick={handleGenerateToken} disabled={isPending}>
-              {isPending ? 'Generating...' : 'Generate Token'}
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Connection Token</label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyToken}
-                  className="h-8"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="h-4 w-4 mr-2" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy
-                    </>
-                  )}
-                </Button>
-              </div>
-              <pre className="p-3 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                {tokenData.token}
-              </pre>
-              <p className="text-xs text-muted-foreground">
-                Save this token securely. It won't be shown again.
-              </p>
-            </div>
+  const content = !tokenData ? (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label htmlFor="connection-name" className="text-sm font-medium">
+          Connection Name (Optional)
+        </label>
+        <Input
+          id="connection-name"
+          placeholder="My MCP Connection"
+          value={connectionName}
+          onChange={(e) => setConnectionName(e.target.value)}
+          disabled={isPending}
+        />
+      </div>
+      <Button onClick={handleGenerateToken} disabled={isPending}>
+        {isPending ? 'Generating...' : 'Generate Token'}
+      </Button>
+    </div>
+  ) : (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium">Connection Token</label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopyToken}
+            className="h-8"
+          >
+            {copied ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy
+              </>
+            )}
+          </Button>
+        </div>
+        <pre className="p-3 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+          {tokenData.token}
+        </pre>
+        <p className="text-xs text-muted-foreground">
+          Save this token securely. It won't be shown again.
+        </p>
+      </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">MCP Client Configuration</label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyConfig}
-                  className="h-8"
-                >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Config
-                </Button>
-              </div>
-              <pre className="p-3 bg-muted rounded-md text-xs font-mono overflow-x-auto">
-                {JSON.stringify(
-                  {
-                    mcpServers: {
-                      'project-flows-online': {
-                        disabled: false,
-                        serverUrl: `${window.location.origin}/api/mcp`,
-                        headers: {
-                          Authorization: `Bearer ${tokenData.token}`,
-                        },
-                      },
-                    },
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium">MCP Client Configuration</label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopyConfig}
+            className="h-8"
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            Copy Config
+          </Button>
+        </div>
+        <pre className="p-3 bg-muted rounded-md text-xs font-mono overflow-x-auto">
+          {JSON.stringify(
+            {
+              mcpServers: {
+                'project-flows-online': {
+                  disabled: false,
+                  serverUrl: `${window.location.origin}/api/mcp`,
+                  headers: {
+                    Authorization: `Bearer ${tokenData.token}`,
                   },
-                  null,
-                  2
-                )}
-              </pre>
-              <p className="text-xs text-muted-foreground">
-                Add this configuration to your MCP client settings (e.g., Claude Desktop, Cline).
-              </p>
-            </div>
+                },
+              },
+            },
+            null,
+            2
+          )}
+        </pre>
+        <p className="text-xs text-muted-foreground">
+          Add this configuration to your MCP client settings (e.g., Claude Desktop, Cline).
+        </p>
+      </div>
 
-            <div className="rounded-lg border p-3 bg-muted/50">
-              <p className="text-sm">
-                <span className="font-medium">Expires:</span>{' '}
-                {new Date(tokenData.expiresAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </p>
-            </div>
+      <div className="rounded-lg border p-3 bg-muted/50">
+        <p className="text-sm">
+          <span className="font-medium">Expires:</span>{' '}
+          {new Date(tokenData.expiresAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </p>
+      </div>
 
-            <Button
-              variant="outline"
-              onClick={() => setTokenData(null)}
-              className="w-full"
-            >
-              Generate Another Token
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      <Button
+        variant="outline"
+        onClick={() => setTokenData(null)}
+        className="w-full"
+      >
+        Generate Another Token
+      </Button>
+    </div>
+  );
+
+  if (variant === 'dialog') {
+    return <div className="space-y-4">{content}</div>;
+  }
+
+  return (
+    <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+      <div className="flex flex-col space-y-1.5 p-6">
+        <h3 className="text-lg font-semibold leading-none tracking-tight">
+          Generate Connection Token
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Create a new token to connect MCP clients to this organization. Tokens expire after 90 days.
+        </p>
+      </div>
+      <div className="p-6 pt-0 space-y-4">{content}</div>
+    </div>
   );
 }

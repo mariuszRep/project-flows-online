@@ -3,6 +3,8 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { createMcpServer } from "@/services/mcp-service";
 import { validateOrigin } from "@/lib/mcp/origin-validator";
 import { AuthContext } from "@/lib/mcp/auth-context";
+import { SessionManager } from "@/lib/mcp/session-manager";
+import type { SessionState } from "@/types/metrics";
 
 const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([
@@ -15,18 +17,25 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set([
  * Gets CORS headers for MCP endpoint
  * Properly reflects the validated origin per-request (multiple origins in one header is invalid)
  */
-function getCorsHeaders(validatedOrigin?: string) {
+function getCorsHeaders(validatedOrigin?: string, sessionId?: string) {
   // Reflect the validated origin, or default to first allowed origin
   const allowedOrigins = process.env.MCP_ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
   const origin = validatedOrigin || allowedOrigins[0] || "*";
 
-  return {
+  const headers: Record<string, string> = {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, mcp-session-id, Last-Event-ID, mcp-protocol-version",
     "Access-Control-Expose-Headers": "mcp-session-id, mcp-protocol-version",
     "Access-Control-Allow-Credentials": "true",
   };
+
+  // Add session ID to response headers if provided
+  if (sessionId) {
+    headers["mcp-session-id"] = sessionId;
+  }
+
+  return headers;
 }
 
 function hasAcceptedType(acceptHeader: string, contentType: string): boolean {
@@ -90,6 +99,22 @@ function isJsonRpcResponse(payload: unknown): boolean {
   return !hasMethod && (hasResult || hasError);
 }
 
+function isInitializeRequest(payload: unknown): boolean {
+  const isInitializeObject = (value: unknown) => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const record = value as Record<string, unknown>;
+    return record.jsonrpc === "2.0" && record.method === "initialize";
+  };
+
+  if (Array.isArray(payload)) {
+    return payload.some(isInitializeObject);
+  }
+
+  return isInitializeObject(payload);
+}
+
 /**
  * Handles MCP requests using WebStandardStreamableHTTPServerTransport
  * Creates a new server and transport instance per request to avoid shared state
@@ -99,6 +124,10 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
   const timestamp = new Date().toISOString();
   const method = request.method;
   const origin = request.headers.get('origin');
+  let parsedBody: unknown | null = null;
+  const isPost = method === "POST";
+  let sessionState: SessionState | null = null;
+  let sessionStateDirty = false;
 
   try {
     // Step 1: Validate Origin header (DNS rebinding protection)
@@ -160,6 +189,18 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       }
     }
 
+    if (isPost) {
+      try {
+        parsedBody = await request.clone().json();
+      } catch (error) {
+        return jsonRpcErrorResponse(
+          400,
+          "Invalid JSON body",
+          origin || undefined
+        );
+      }
+    }
+
     // Step 2: Validate connection token authentication
     let authContext: AuthContext | null = null;
     try {
@@ -197,26 +238,141 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       );
     }
 
-    // Step 3: Create transport and server per request (stateless mode)
-    // Pass authContext to enable organization-scoped data filtering in tools
-    // Dynamically loads published workflows as MCP tools
-    const transport = new WebStandardStreamableHTTPServerTransport();
-    const server = await createMcpServer(authContext);
+    // Step 3: Validate or create MCP session
+    const userId = authContext.getUserId();
+    const organizationId = authContext.getOrganizationId();
+    const mcpSessionId = request.headers.get('mcp-session-id');
+    let sessionId = mcpSessionId;
 
-    let shouldReturnAccepted = false;
-    if (method === "POST") {
-      try {
-        const body = await request.clone().json();
-        if (!Array.isArray(body)) {
-          shouldReturnAccepted = isJsonRpcNotification(body) || isJsonRpcResponse(body);
-        }
-      } catch (error) {
+    // For GET requests (SSE streams), require existing session
+    if (method === "GET") {
+      if (!mcpSessionId) {
+        console.warn(`[${timestamp}] GET request missing required Mcp-Session-Id header`);
         return jsonRpcErrorResponse(
           400,
-          "Invalid JSON body",
+          "GET requests require existing session. Include Mcp-Session-Id header.",
           origin || undefined
         );
       }
+
+      // Validate session ownership
+      const validation = await SessionManager.validateSession(mcpSessionId, userId);
+      if (!validation.valid) {
+        console.warn(`[${timestamp}] Session validation failed for user ${userId} session ${mcpSessionId}`);
+        if (validation.reason === 'not_found') {
+          return jsonRpcErrorResponse(
+            404,
+            "Session not found.",
+            origin || undefined,
+            { sessionId: mcpSessionId }
+          );
+        }
+        return jsonRpcErrorResponse(
+          403,
+          "Session validation failed. Session does not belong to authenticated user.",
+          origin || undefined,
+          { sessionId: mcpSessionId, userId }
+        );
+      }
+
+      console.log(`[${timestamp}] Session ${mcpSessionId} validated for user ${userId}`);
+    }
+
+    // For POST requests, validate existing session or create new one
+    if (method === "POST") {
+      if (mcpSessionId) {
+        // Validate existing session
+        const validation = await SessionManager.validateSession(mcpSessionId, userId);
+        if (!validation.valid) {
+          console.warn(`[${timestamp}] Session validation failed for user ${userId} session ${mcpSessionId}`);
+          if (validation.reason === 'not_found') {
+            return jsonRpcErrorResponse(
+              404,
+              "Session not found.",
+              origin || undefined,
+              { sessionId: mcpSessionId }
+            );
+          }
+          return jsonRpcErrorResponse(
+            403,
+            "Session validation failed. Session does not belong to authenticated user.",
+            origin || undefined,
+            { sessionId: mcpSessionId, userId }
+          );
+        }
+        console.log(`[${timestamp}] Session ${mcpSessionId} validated for user ${userId}`);
+      } else {
+        const isInitialize = isInitializeRequest(parsedBody);
+        if (!isInitialize) {
+          return jsonRpcErrorResponse(
+            400,
+            "Requests require existing session. Include Mcp-Session-Id header.",
+            origin || undefined
+          );
+        }
+
+        // Reuse existing session for the same connection when available
+        try {
+          const connectionId = authContext.getConnectionId();
+          const connectionName = authContext.getConnectionName();
+          const existingSessionId = connectionId
+            ? await SessionManager.findSessionForConnection(userId, connectionId)
+            : null;
+
+          if (existingSessionId) {
+            sessionId = existingSessionId;
+            await SessionManager.extendSession(existingSessionId, userId);
+            console.log(
+              `[${timestamp}] Reusing existing session ${sessionId} for user ${userId} connection ${connectionId}`
+            );
+          } else {
+            sessionId = await SessionManager.createSession(
+              userId,
+              organizationId,
+              connectionId,
+              connectionName
+            );
+            console.log(`[${timestamp}] Created new session ${sessionId} for user ${userId}`);
+          }
+        } catch (error) {
+          console.error(`[${timestamp}] Failed to create session:`, error);
+          return jsonRpcErrorResponse(
+            500,
+            "Failed to create session",
+            origin || undefined
+          );
+        }
+      }
+    }
+
+    // Step 4: Load session state for execution context
+    if (sessionId) {
+      sessionState = await SessionManager.getState(sessionId, userId);
+    }
+
+    const sessionContext = sessionId
+      ? {
+        sessionId,
+        userId,
+        state: sessionState,
+        setState: (nextState: SessionState | null) => {
+          sessionState = nextState;
+        },
+        markDirty: () => {
+          sessionStateDirty = true;
+        },
+      }
+      : undefined;
+
+    // Step 5: Create transport and server per request (stateless mode)
+    // Pass authContext to enable organization-scoped data filtering in tools
+    // Dynamically loads published workflows as MCP tools
+    const transport = new WebStandardStreamableHTTPServerTransport();
+    const server = await createMcpServer(authContext, sessionContext);
+
+    let shouldReturnAccepted = false;
+    if (isPost && parsedBody && !Array.isArray(parsedBody)) {
+      shouldReturnAccepted = isJsonRpcNotification(parsedBody) || isJsonRpcResponse(parsedBody);
     }
 
     // Connect server to transport
@@ -225,12 +381,37 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     // Handle the request using Web Standard Request API
     const response = await transport.handleRequest(request);
 
-    // Add CORS headers to the response (reflect validated origin)
-    const corsHeaders = getCorsHeaders(origin || undefined);
+    // Add CORS headers to the response (reflect validated origin, include session ID)
+    const corsHeaders = getCorsHeaders(origin || undefined, sessionId || undefined);
     Object.entries(corsHeaders).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
     response.headers.set("mcp-protocol-version", protocolVersion);
+
+    if (sessionId) {
+      const now = Date.now();
+      const nextState = {
+        ...(sessionState || {}),
+        lastActivityAt: now,
+        requestCount: (sessionState?.requestCount || 0) + 1,
+      };
+      sessionState = nextState;
+      sessionStateDirty = true;
+
+      if (sessionStateDirty) {
+        const updatedState = await SessionManager.updateState(sessionId, userId, sessionState);
+        if (updatedState) {
+          sessionState = updatedState;
+        }
+      }
+
+      await SessionManager.extendSession(sessionId, userId);
+      await SessionManager.recordRequestCount({
+        sessionId,
+        userId,
+        organizationId,
+      });
+    }
 
     if (shouldReturnAccepted && response.ok) {
       return new NextResponse(null, {
@@ -296,10 +477,22 @@ export async function DELETE(request: NextRequest) {
   try {
     const authContext = await AuthContext.fromRequest(request);
     const { ConnectionValidator } = await import('@/lib/mcp/connection-validator');
-    
+
+    // Delete MCP session if present
+    const mcpSessionId = request.headers.get('mcp-session-id');
+    if (mcpSessionId) {
+      try {
+        await SessionManager.deleteSession(mcpSessionId, authContext.getUserId());
+        await SessionManager.deleteState(mcpSessionId, authContext.getUserId());
+      } catch (error) {
+        console.error('Failed to delete session during disconnect:', error);
+        // Don't fail the entire DELETE if session cleanup fails
+      }
+    }
+
     // Mark connection as disconnected
     await ConnectionValidator.disconnect(authContext.getConnectionId());
-    
+
     return new NextResponse(null, {
       status: 204,
       headers: getCorsHeaders(),

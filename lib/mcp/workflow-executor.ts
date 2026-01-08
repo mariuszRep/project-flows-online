@@ -1,8 +1,18 @@
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import type { AuthContext } from './auth-context';
-import type { ActionParams, FunctionResult, ActionContext } from '@/types/actions';
+import type { ActionParams, FunctionResult, ActionContext, SanitizedParams } from '@/types/actions';
+import type { SessionState } from '@/types/metrics';
 import { DAGTraverser, type WorkflowNode, type WorkflowEdge } from './dag-traverser';
 import { ActionRegistry } from './action-registry';
+import { sanitizeActionParams } from './param-sanitizer';
+
+export interface SessionExecutionContext {
+  sessionId: string;
+  userId: string;
+  state: SessionState | null;
+  setState: (state: SessionState | null) => void;
+  markDirty: () => void;
+}
 
 /**
  * Workflow Execution Engine
@@ -10,6 +20,14 @@ import { ActionRegistry } from './action-registry';
  */
 export class WorkflowExecutor {
   private actionRegistry: ActionRegistry;
+  private static sanitizationAttempts = 0;
+  private static readonly sanitizationAlertThreshold = (() => {
+    const parsed = Number.parseInt(
+      process.env.MCP_SANITIZATION_ALERT_THRESHOLD || '3',
+      10
+    );
+    return Number.isFinite(parsed) ? parsed : 3;
+  })();
 
   constructor() {
     this.actionRegistry = new ActionRegistry();
@@ -26,12 +44,28 @@ export class WorkflowExecutor {
   async executeWorkflow(
     workflowId: string,
     params: ActionParams,
-    authContext: AuthContext
+    authContext: AuthContext,
+    sessionContext?: SessionExecutionContext
   ): Promise<FunctionResult> {
     const executionStart = Date.now();
+    let currentSessionState = sessionContext?.state ?? null;
+    const updateSessionState = sessionContext
+      ? async (patch: Partial<SessionState>) => {
+        const nextState = {
+          ...(currentSessionState || {}),
+          ...(patch || {}),
+        } as SessionState;
+        currentSessionState = nextState;
+        sessionContext.setState(nextState);
+        sessionContext.markDirty();
+        return nextState;
+      }
+      : undefined;
 
     try {
       console.log(`[WorkflowExecutor] Starting execution of workflow ${workflowId}`);
+      // Security boundary: strip credential fields before any action executes.
+      const sanitizedWorkflowParams = this.sanitizeParams(params);
 
       // Step 1: Load workflow nodes and edges
       const { nodes, edges } = await this.loadWorkflowGraph(workflowId, authContext);
@@ -67,12 +101,21 @@ export class WorkflowExecutor {
 
         // Skip start and end nodes (they don't have actions)
         if (node.type === 'start' || node.type === 'end') {
-          nodeOutputs.set(nodeId, params);
+          nodeOutputs.set(nodeId, sanitizedWorkflowParams);
           continue;
         }
 
         // Execute action node
-        const result = await this.executeNode(node, params, nodeOutputs, authContext, workflowId);
+        const result = await this.executeNode(
+          node,
+          sanitizedWorkflowParams,
+          nodeOutputs,
+          authContext,
+          workflowId,
+          sessionContext?.sessionId,
+          currentSessionState,
+          updateSessionState
+        );
 
         nodeOutputs.set(nodeId, result.data);
 
@@ -164,7 +207,10 @@ export class WorkflowExecutor {
     workflowParams: ActionParams,
     nodeOutputs: Map<string, any>,
     authContext: AuthContext,
-    workflowId: string
+    workflowId: string,
+    sessionId?: string,
+    sessionState?: SessionState | null,
+    updateSessionState?: (patch: Partial<SessionState>) => Promise<SessionState | null>
   ): Promise<FunctionResult> {
     const actionId = node.data?.action_id || node.data?.actionId;
 
@@ -186,6 +232,7 @@ export class WorkflowExecutor {
         ...node.data?.parameters,
         _previousOutputs: Object.fromEntries(nodeOutputs),
       };
+      const sanitizedNodeParams = this.sanitizeParams(nodeParams);
 
       // Create action context
       const context: ActionContext = {
@@ -193,11 +240,14 @@ export class WorkflowExecutor {
         nodeId: node.id,
         organizationId: authContext.getOrganizationId(),
         userId: authContext.getUserId(),
+        sessionId,
+        sessionState,
+        updateSessionState,
       };
 
       // Execute the action
       console.log(`[WorkflowExecutor] Executing node ${node.id} with action ${actionId}`);
-      const result = await action(nodeParams, context);
+      const result = await action(sanitizedNodeParams, context);
 
       return result;
     } catch (error) {
@@ -206,5 +256,29 @@ export class WorkflowExecutor {
         error: `Action execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
+  }
+
+  /**
+   * Critical security boundary: sanitize workflow params to prevent user
+   * credentials from being forwarded to external services by actions.
+   */
+  private sanitizeParams(params: ActionParams): SanitizedParams {
+    const { sanitized, removedKeys } = sanitizeActionParams(params);
+
+    if (removedKeys.length > 0) {
+      WorkflowExecutor.sanitizationAttempts += 1;
+      console.warn(
+        `[WorkflowExecutor][Security] Removed sensitive params: ${removedKeys.join(', ')}`
+      );
+
+      if (WorkflowExecutor.sanitizationAttempts >= WorkflowExecutor.sanitizationAlertThreshold) {
+        console.warn(
+          `[WorkflowExecutor][Security] Elevated sensitive param stripping volume (${WorkflowExecutor.sanitizationAttempts}). ` +
+          'Investigate potential token passthrough attempts.'
+        );
+      }
+    }
+
+    return sanitized;
   }
 }

@@ -2,10 +2,28 @@
  * Type definitions for workflow action functions
  */
 
+import type { SessionState } from './metrics';
+
 /**
  * Parameters passed to action functions (from workflow inputs or previous node outputs)
  */
 export type ActionParams = Record<string, any>;
+
+/**
+ * Sanitized action parameters that exclude known credential fields
+ * to prevent token passthrough to external services.
+ */
+export type SanitizedParams = Omit<
+  ActionParams,
+  | 'authorization'
+  | 'bearer'
+  | 'token'
+  | 'apiKey'
+  | 'secretKey'
+  | 'access_token'
+  | 'refresh_token'
+  | 'password'
+>;
 
 /**
  * Context provided to action functions during execution
@@ -15,6 +33,9 @@ export interface ActionContext {
   nodeId: string;
   organizationId: string;
   userId: string;
+  sessionId?: string;
+  sessionState?: SessionState | null;
+  updateSessionState?: (state: Partial<SessionState>) => Promise<SessionState | null>;
 }
 
 /**
