@@ -4,6 +4,7 @@ import { createMcpServer } from "@/services/mcp-service";
 import { validateOrigin } from "@/lib/mcp/origin-validator";
 import { AuthContext } from "@/lib/mcp/auth-context";
 import { SessionManager } from "@/lib/mcp/session-manager";
+import type { SessionState } from "@/types/metrics";
 
 const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([
@@ -125,6 +126,8 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
   const origin = request.headers.get('origin');
   let parsedBody: unknown | null = null;
   const isPost = method === "POST";
+  let sessionState: SessionState | null = null;
+  let sessionStateDirty = false;
 
   try {
     // Step 1: Validate Origin header (DNS rebinding protection)
@@ -342,11 +345,30 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       }
     }
 
-    // Step 4: Create transport and server per request (stateless mode)
+    // Step 4: Load session state for execution context
+    if (sessionId) {
+      sessionState = await SessionManager.getState(sessionId, userId);
+    }
+
+    const sessionContext = sessionId
+      ? {
+        sessionId,
+        userId,
+        state: sessionState,
+        setState: (nextState: SessionState | null) => {
+          sessionState = nextState;
+        },
+        markDirty: () => {
+          sessionStateDirty = true;
+        },
+      }
+      : undefined;
+
+    // Step 5: Create transport and server per request (stateless mode)
     // Pass authContext to enable organization-scoped data filtering in tools
     // Dynamically loads published workflows as MCP tools
     const transport = new WebStandardStreamableHTTPServerTransport();
-    const server = await createMcpServer(authContext);
+    const server = await createMcpServer(authContext, sessionContext);
 
     let shouldReturnAccepted = false;
     if (isPost && parsedBody && !Array.isArray(parsedBody)) {
@@ -365,6 +387,31 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       response.headers.set(key, value);
     });
     response.headers.set("mcp-protocol-version", protocolVersion);
+
+    if (sessionId) {
+      const now = Date.now();
+      const nextState = {
+        ...(sessionState || {}),
+        lastActivityAt: now,
+        requestCount: (sessionState?.requestCount || 0) + 1,
+      };
+      sessionState = nextState;
+      sessionStateDirty = true;
+
+      if (sessionStateDirty) {
+        const updatedState = await SessionManager.updateState(sessionId, userId, sessionState);
+        if (updatedState) {
+          sessionState = updatedState;
+        }
+      }
+
+      await SessionManager.extendSession(sessionId, userId);
+      await SessionManager.recordRequestCount({
+        sessionId,
+        userId,
+        organizationId,
+      });
+    }
 
     if (shouldReturnAccepted && response.ok) {
       return new NextResponse(null, {
@@ -436,6 +483,7 @@ export async function DELETE(request: NextRequest) {
     if (mcpSessionId) {
       try {
         await SessionManager.deleteSession(mcpSessionId, authContext.getUserId());
+        await SessionManager.deleteState(mcpSessionId, authContext.getUserId());
       } catch (error) {
         console.error('Failed to delete session during disconnect:', error);
         // Don't fail the entire DELETE if session cleanup fails

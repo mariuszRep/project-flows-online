@@ -2,6 +2,8 @@
  * Type definitions for workflow action functions
  */
 
+import type { SessionState } from './metrics';
+
 /**
  * Parameters passed to action functions (from workflow inputs or previous node outputs)
  */
@@ -31,6 +33,9 @@ export interface ActionContext {
   nodeId: string;
   organizationId: string;
   userId: string;
+  sessionId?: string;
+  sessionState?: SessionState | null;
+  updateSessionState?: (state: Partial<SessionState>) => Promise<SessionState | null>;
 }
 
 /**

@@ -1,9 +1,18 @@
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import type { AuthContext } from './auth-context';
 import type { ActionParams, FunctionResult, ActionContext, SanitizedParams } from '@/types/actions';
+import type { SessionState } from '@/types/metrics';
 import { DAGTraverser, type WorkflowNode, type WorkflowEdge } from './dag-traverser';
 import { ActionRegistry } from './action-registry';
 import { sanitizeActionParams } from './param-sanitizer';
+
+export interface SessionExecutionContext {
+  sessionId: string;
+  userId: string;
+  state: SessionState | null;
+  setState: (state: SessionState | null) => void;
+  markDirty: () => void;
+}
 
 /**
  * Workflow Execution Engine
@@ -35,9 +44,23 @@ export class WorkflowExecutor {
   async executeWorkflow(
     workflowId: string,
     params: ActionParams,
-    authContext: AuthContext
+    authContext: AuthContext,
+    sessionContext?: SessionExecutionContext
   ): Promise<FunctionResult> {
     const executionStart = Date.now();
+    let currentSessionState = sessionContext?.state ?? null;
+    const updateSessionState = sessionContext
+      ? async (patch: Partial<SessionState>) => {
+        const nextState = {
+          ...(currentSessionState || {}),
+          ...(patch || {}),
+        } as SessionState;
+        currentSessionState = nextState;
+        sessionContext.setState(nextState);
+        sessionContext.markDirty();
+        return nextState;
+      }
+      : undefined;
 
     try {
       console.log(`[WorkflowExecutor] Starting execution of workflow ${workflowId}`);
@@ -88,7 +111,10 @@ export class WorkflowExecutor {
           sanitizedWorkflowParams,
           nodeOutputs,
           authContext,
-          workflowId
+          workflowId,
+          sessionContext?.sessionId,
+          currentSessionState,
+          updateSessionState
         );
 
         nodeOutputs.set(nodeId, result.data);
@@ -181,7 +207,10 @@ export class WorkflowExecutor {
     workflowParams: ActionParams,
     nodeOutputs: Map<string, any>,
     authContext: AuthContext,
-    workflowId: string
+    workflowId: string,
+    sessionId?: string,
+    sessionState?: SessionState | null,
+    updateSessionState?: (patch: Partial<SessionState>) => Promise<SessionState | null>
   ): Promise<FunctionResult> {
     const actionId = node.data?.action_id || node.data?.actionId;
 
@@ -211,6 +240,9 @@ export class WorkflowExecutor {
         nodeId: node.id,
         organizationId: authContext.getOrganizationId(),
         userId: authContext.getUserId(),
+        sessionId,
+        sessionState,
+        updateSessionState,
       };
 
       // Execute the action
