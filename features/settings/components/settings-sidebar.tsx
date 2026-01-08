@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Building2, Folder, Shield, ChevronRight, UserCog, Users, Mail, Settings, User, CreditCard, Plug } from 'lucide-react'
+import { Building2, Folder, Shield, ChevronRight, UserCog, Users, Mail, Settings, User, CreditCard, Plug, ServerCog } from 'lucide-react'
 import { useParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { NavSwitcher } from '@/components/layout/nav-switcher'
@@ -33,6 +33,7 @@ export type AccessSubsection = 'permissions' | 'roles' | 'invitations'
 export type GeneralSubsection = 'profile'
 export type SubscriptionSubsection = 'billing'
 export type AccountSubsection = 'profile' | 'security'
+export type MCPSubsection = 'connections'
 
 interface SettingsSidebarProps extends React.ComponentProps<typeof Sidebar> {
   organizations: Organization[]
@@ -78,6 +79,14 @@ const subscriptionSubsections: { value: SubscriptionSubsection; label: string; i
   },
 ]
 
+const mcpSubsections: { value: MCPSubsection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  {
+    value: 'connections',
+    label: 'Connections',
+    icon: Plug,
+  },
+]
+
 const accountSubsections: { value: AccountSubsection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   {
     value: 'profile',
@@ -107,6 +116,7 @@ export function SettingsSidebar({
     subscription: false,
     access: false,
     account: false,
+    mcp: false,
   })
 
   // Determine active section and subsection from pathname
@@ -139,6 +149,9 @@ export function SettingsSidebar({
     if (pathname.includes('/settings/account/security')) {
       return { section: 'account' as const, subsection: 'security' as const }
     }
+    if (pathname.includes('/settings/mcp/connections')) {
+      return { section: 'mcp' as const, subsection: 'connections' as const }
+    }
     if (pathname.includes('/settings/mcp')) {
       return { section: 'mcp' as const, subsection: null }
     }
@@ -150,7 +163,7 @@ export function SettingsSidebar({
 
   // Auto-open the active section when pathname changes
   React.useEffect(() => {
-    if (activeSection && ['general', 'subscription', 'access', 'account'].includes(activeSection)) {
+    if (activeSection && ['general', 'subscription', 'access', 'account', 'mcp'].includes(activeSection)) {
       setOpenSections(prev => ({ ...prev, [activeSection]: true }))
     }
   }, [activeSection])
@@ -270,20 +283,44 @@ export function SettingsSidebar({
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* MCP Section */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip="MCP Connections"
-                isActive={activeSection === 'mcp'}
-                disabled={navigationDisabled}
-              >
-                <Link href={organizationId ? `/organizations/${organizationId}/settings/mcp` : '#'}>
-                  <Plug />
-                  <span>MCP</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {/* MCP Section with Collapsible Subsections */}
+            <Collapsible
+              asChild
+              open={openSections.mcp}
+              onOpenChange={(open) => setOpenSections(prev => ({ ...prev, mcp: open }))}
+              className="group/collapsible"
+            >
+              <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      tooltip="MCP"
+                      disabled={navigationDisabled}
+                    >
+                    <ServerCog />
+                    <span>MCP</span>
+                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {mcpSubsections.map((subsection) => (
+                      <SidebarMenuSubItem key={subsection.value}>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={activeSection === 'mcp' && activeSubsection === subsection.value}
+                          className={navigationDisabled ? 'pointer-events-none opacity-50' : ''}
+                        >
+                          <Link href={organizationId ? `/organizations/${organizationId}/settings/mcp/${subsection.value}` : '#'}>
+                            <subsection.icon className="h-4 w-4" />
+                            <span>{subsection.label}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
 
             {/* Access Section with Collapsible Subsections */}
             <Collapsible

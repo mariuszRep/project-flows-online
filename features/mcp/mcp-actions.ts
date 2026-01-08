@@ -49,7 +49,7 @@ export async function generateMCPToken(
       expiresInDays: 90,
     });
 
-    revalidatePath(`/organizations/${organizationId}/settings/mcp`);
+    revalidatePath(`/organizations/${organizationId}/settings/mcp/connections`);
 
     return {
       success: true,
@@ -108,7 +108,7 @@ export async function revokeMCPConnection(
 
     await MCPConnectionService.revokeConnection(connectionId, user.id);
     
-    revalidatePath(`/organizations/${organizationId}/settings/mcp`);
+    revalidatePath(`/organizations/${organizationId}/settings/mcp/connections`);
 
     return { success: true };
   } catch (error) {
