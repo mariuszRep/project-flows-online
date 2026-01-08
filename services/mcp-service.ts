@@ -4,6 +4,7 @@ import { AuthContext } from "@/lib/mcp/auth-context";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { convertNodeToSchema, convertJsonSchemaToZod, canRegisterAsTool, sanitizeToolName } from "@/lib/mcp/schema-converter";
 import { WorkflowExecutor } from "@/lib/mcp/workflow-executor";
+import { sanitizeActionParams } from "@/lib/mcp/param-sanitizer";
 
 interface WorkflowTool {
   id: string;
@@ -188,8 +189,26 @@ export async function createMcpServer(authContext?: AuthContext): Promise<McpSer
           };
         }
 
+        const { sanitized, removedKeys } = sanitizeActionParams(params);
+        if (removedKeys.length > 0) {
+          console.warn(
+            `[MCP][Security] Rejected workflow invocation with sensitive params: ${removedKeys.join(', ')}`
+          );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  success: false,
+                  error: "Sensitive credential parameters are not allowed in workflow inputs.",
+                }),
+              },
+            ],
+          };
+        }
+
         // Execute the workflow
-        const result = await executor.executeWorkflow(tool.id, params, authContext);
+        const result = await executor.executeWorkflow(tool.id, sanitized, authContext);
 
         return {
           content: [
