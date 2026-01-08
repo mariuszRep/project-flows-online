@@ -3,6 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { createMcpServer } from "@/services/mcp-service";
 import { validateOrigin } from "@/lib/mcp/origin-validator";
 import { AuthContext } from "@/lib/mcp/auth-context";
+import { SessionManager } from "@/lib/mcp/session-manager";
 
 const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([
@@ -15,18 +16,25 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set([
  * Gets CORS headers for MCP endpoint
  * Properly reflects the validated origin per-request (multiple origins in one header is invalid)
  */
-function getCorsHeaders(validatedOrigin?: string) {
+function getCorsHeaders(validatedOrigin?: string, sessionId?: string) {
   // Reflect the validated origin, or default to first allowed origin
   const allowedOrigins = process.env.MCP_ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
   const origin = validatedOrigin || allowedOrigins[0] || "*";
 
-  return {
+  const headers: Record<string, string> = {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, mcp-session-id, Last-Event-ID, mcp-protocol-version",
     "Access-Control-Expose-Headers": "mcp-session-id, mcp-protocol-version",
     "Access-Control-Allow-Credentials": "true",
   };
+
+  // Add session ID to response headers if provided
+  if (sessionId) {
+    headers["mcp-session-id"] = sessionId;
+  }
+
+  return headers;
 }
 
 function hasAcceptedType(acceptHeader: string, contentType: string): boolean {
@@ -197,7 +205,70 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       );
     }
 
-    // Step 3: Create transport and server per request (stateless mode)
+    // Step 3: Validate or create MCP session
+    const userId = authContext.getUserId();
+    const organizationId = authContext.getOrganizationId();
+    const mcpSessionId = request.headers.get('mcp-session-id');
+    let sessionId = mcpSessionId;
+
+    // For GET requests (SSE streams), require existing session
+    if (method === "GET") {
+      if (!mcpSessionId) {
+        console.warn(`[${timestamp}] GET request missing required Mcp-Session-Id header`);
+        return jsonRpcErrorResponse(
+          400,
+          "GET requests require existing session. Include Mcp-Session-Id header.",
+          origin || undefined
+        );
+      }
+
+      // Validate session ownership
+      const isValidSession = await SessionManager.validateSession(mcpSessionId, userId);
+      if (!isValidSession) {
+        console.warn(`[${timestamp}] Session validation failed for user ${userId} session ${mcpSessionId}`);
+        return jsonRpcErrorResponse(
+          403,
+          "Session validation failed. Session does not belong to authenticated user.",
+          origin || undefined,
+          { sessionId: mcpSessionId, userId }
+        );
+      }
+
+      console.log(`[${timestamp}] Session ${mcpSessionId} validated for user ${userId}`);
+    }
+
+    // For POST requests, validate existing session or create new one
+    if (method === "POST") {
+      if (mcpSessionId) {
+        // Validate existing session
+        const isValidSession = await SessionManager.validateSession(mcpSessionId, userId);
+        if (!isValidSession) {
+          console.warn(`[${timestamp}] Session validation failed for user ${userId} session ${mcpSessionId}`);
+          return jsonRpcErrorResponse(
+            403,
+            "Session validation failed. Session does not belong to authenticated user.",
+            origin || undefined,
+            { sessionId: mcpSessionId, userId }
+          );
+        }
+        console.log(`[${timestamp}] Session ${mcpSessionId} validated for user ${userId}`);
+      } else {
+        // Create new session for requests without session ID
+        try {
+          sessionId = await SessionManager.createSession(userId, organizationId);
+          console.log(`[${timestamp}] Created new session ${sessionId} for user ${userId}`);
+        } catch (error) {
+          console.error(`[${timestamp}] Failed to create session:`, error);
+          return jsonRpcErrorResponse(
+            500,
+            "Failed to create session",
+            origin || undefined
+          );
+        }
+      }
+    }
+
+    // Step 4: Create transport and server per request (stateless mode)
     // Pass authContext to enable organization-scoped data filtering in tools
     // Dynamically loads published workflows as MCP tools
     const transport = new WebStandardStreamableHTTPServerTransport();
@@ -225,8 +296,8 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     // Handle the request using Web Standard Request API
     const response = await transport.handleRequest(request);
 
-    // Add CORS headers to the response (reflect validated origin)
-    const corsHeaders = getCorsHeaders(origin || undefined);
+    // Add CORS headers to the response (reflect validated origin, include session ID)
+    const corsHeaders = getCorsHeaders(origin || undefined, sessionId || undefined);
     Object.entries(corsHeaders).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
@@ -296,10 +367,21 @@ export async function DELETE(request: NextRequest) {
   try {
     const authContext = await AuthContext.fromRequest(request);
     const { ConnectionValidator } = await import('@/lib/mcp/connection-validator');
-    
+
+    // Delete MCP session if present
+    const mcpSessionId = request.headers.get('mcp-session-id');
+    if (mcpSessionId) {
+      try {
+        await SessionManager.deleteSession(mcpSessionId, authContext.getUserId());
+      } catch (error) {
+        console.error('Failed to delete session during disconnect:', error);
+        // Don't fail the entire DELETE if session cleanup fails
+      }
+    }
+
     // Mark connection as disconnected
     await ConnectionValidator.disconnect(authContext.getConnectionId());
-    
+
     return new NextResponse(null, {
       status: 204,
       headers: getCorsHeaders(),
