@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Building2, Folder, Shield, ChevronRight, UserCog, Users, Mail, Settings, User, CreditCard } from 'lucide-react'
+import { Building2, Folder, Shield, ChevronRight, UserCog, Users, Mail, Settings, User, CreditCard, Plug } from 'lucide-react'
 import { useParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { NavSwitcher } from '@/components/layout/nav-switcher'
@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/sidebar'
 import type { Organization } from '@/types/database'
 
-export type SettingsSection = 'workspaces' | 'access' | 'general' | 'account' | 'subscription'
+export type SettingsSection = 'workspaces' | 'access' | 'general' | 'account' | 'subscription' | 'mcp'
 export type AccessSubsection = 'permissions' | 'roles' | 'invitations'
 export type GeneralSubsection = 'profile'
 export type SubscriptionSubsection = 'billing'
@@ -138,6 +138,9 @@ export function SettingsSidebar({
     }
     if (pathname.includes('/settings/account/security')) {
       return { section: 'account' as const, subsection: 'security' as const }
+    }
+    if (pathname.includes('/settings/mcp')) {
+      return { section: 'mcp' as const, subsection: null }
     }
 
     return { section: null, subsection: null }
@@ -263,6 +266,21 @@ export function SettingsSidebar({
                 <Link href={organizationId ? `/organizations/${organizationId}/settings/workspaces` : '#'}>
                   <Folder />
                   <span>Workspaces</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* MCP Section */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip="MCP Connections"
+                isActive={activeSection === 'mcp'}
+                disabled={navigationDisabled}
+              >
+                <Link href={organizationId ? `/organizations/${organizationId}/settings/mcp` : '#'}>
+                  <Plug />
+                  <span>MCP</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

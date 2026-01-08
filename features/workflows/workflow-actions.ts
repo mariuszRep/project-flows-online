@@ -743,3 +743,36 @@ export async function deleteEdge(
     return { success: false, error: errorMessage }
   }
 }
+
+// =====================================================
+// ACTION REGISTRY ACCESS
+// =====================================================
+
+/**
+ * Get available actions from the action registry
+ * Returns action metadata for UI display
+ */
+export async function getAvailableActions(): Promise<{
+  success: boolean
+  actions?: import('@/types/actions').ActionMetadata[]
+  error?: string
+}> {
+  try {
+    // Dynamically import the action metadata
+    const { actionMetadata } = await import('@/actions')
+
+    // Convert Record to Array
+    const actions = Object.values(actionMetadata)
+
+    return {
+      success: true,
+      actions,
+    }
+  } catch (error) {
+    console.error('Error loading available actions:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load actions',
+    }
+  }
+}

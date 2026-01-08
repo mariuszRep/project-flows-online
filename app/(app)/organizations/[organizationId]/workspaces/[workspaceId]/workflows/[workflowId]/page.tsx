@@ -26,6 +26,7 @@ export default async function EditWorkflowPage({ params }: EditWorkflowPageProps
     workflow: {
       name: workflowData.workflow.name,
       description: workflowData.workflow.description,
+      status: workflowData.workflow.status,
     },
     nodes: workflowData.nodes,
     edges: workflowData.edges,

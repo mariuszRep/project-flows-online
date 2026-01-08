@@ -10,6 +10,11 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Skip middleware for MCP endpoint (it has its own origin validation)
+  if (pathname.startsWith('/api/mcp')) {
+    return NextResponse.next()
+  }
+
   // Apply rate limiting to auth endpoints
   // Skip rate limiting in development
   const isDevelopment = process.env.NODE_ENV === 'development'
