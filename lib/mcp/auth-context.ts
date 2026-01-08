@@ -24,8 +24,11 @@ export class AuthContext {
     }
 
     // Extract token from Bearer scheme
+    // Handle both "Bearer <token>" and "Bearer: <token>" (adapter bug workaround)
     const parts = authHeader.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+
+    // Check for valid Bearer format (with or without colon)
+    if (parts.length !== 2 || (!parts[0].startsWith('Bearer'))) {
       throw new Error('Invalid Authorization header format. Expected: Bearer <token>');
     }
 

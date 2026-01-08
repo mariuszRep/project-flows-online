@@ -8,6 +8,7 @@ const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([
   "2025-03-26",
   "2025-06-18",
+  "2025-11-25",
 ]);
 
 /**
@@ -124,7 +125,9 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
 
     const protocolVersionHeader = request.headers.get("mcp-protocol-version");
     const protocolVersion = protocolVersionHeader || DEFAULT_PROTOCOL_VERSION;
+
     if (protocolVersionHeader && !SUPPORTED_PROTOCOL_VERSIONS.has(protocolVersionHeader)) {
+      console.warn(`[MCP] Unsupported protocol version: ${protocolVersionHeader}`);
       return jsonRpcErrorResponse(
         400,
         `Unsupported MCP-Protocol-Version: ${protocolVersionHeader}`,
@@ -133,6 +136,7 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     }
 
     const acceptHeader = request.headers.get("accept") || "";
+
     if (method === "POST") {
       const hasJson = hasAcceptedType(acceptHeader, "application/json");
       const hasSse = hasAcceptedType(acceptHeader, "text/event-stream");
