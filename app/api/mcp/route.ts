@@ -98,6 +98,22 @@ function isJsonRpcResponse(payload: unknown): boolean {
   return !hasMethod && (hasResult || hasError);
 }
 
+function isInitializeRequest(payload: unknown): boolean {
+  const isInitializeObject = (value: unknown) => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const record = value as Record<string, unknown>;
+    return record.jsonrpc === "2.0" && record.method === "initialize";
+  };
+
+  if (Array.isArray(payload)) {
+    return payload.some(isInitializeObject);
+  }
+
+  return isInitializeObject(payload);
+}
+
 /**
  * Handles MCP requests using WebStandardStreamableHTTPServerTransport
  * Creates a new server and transport instance per request to avoid shared state
@@ -107,6 +123,8 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
   const timestamp = new Date().toISOString();
   const method = request.method;
   const origin = request.headers.get('origin');
+  let parsedBody: unknown | null = null;
+  const isPost = method === "POST";
 
   try {
     // Step 1: Validate Origin header (DNS rebinding protection)
@@ -168,6 +186,18 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       }
     }
 
+    if (isPost) {
+      try {
+        parsedBody = await request.clone().json();
+      } catch (error) {
+        return jsonRpcErrorResponse(
+          400,
+          "Invalid JSON body",
+          origin || undefined
+        );
+      }
+    }
+
     // Step 2: Validate connection token authentication
     let authContext: AuthContext | null = null;
     try {
@@ -223,9 +253,17 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       }
 
       // Validate session ownership
-      const isValidSession = await SessionManager.validateSession(mcpSessionId, userId);
-      if (!isValidSession) {
+      const validation = await SessionManager.validateSession(mcpSessionId, userId);
+      if (!validation.valid) {
         console.warn(`[${timestamp}] Session validation failed for user ${userId} session ${mcpSessionId}`);
+        if (validation.reason === 'not_found') {
+          return jsonRpcErrorResponse(
+            404,
+            "Session not found.",
+            origin || undefined,
+            { sessionId: mcpSessionId }
+          );
+        }
         return jsonRpcErrorResponse(
           403,
           "Session validation failed. Session does not belong to authenticated user.",
@@ -241,9 +279,17 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     if (method === "POST") {
       if (mcpSessionId) {
         // Validate existing session
-        const isValidSession = await SessionManager.validateSession(mcpSessionId, userId);
-        if (!isValidSession) {
+        const validation = await SessionManager.validateSession(mcpSessionId, userId);
+        if (!validation.valid) {
           console.warn(`[${timestamp}] Session validation failed for user ${userId} session ${mcpSessionId}`);
+          if (validation.reason === 'not_found') {
+            return jsonRpcErrorResponse(
+              404,
+              "Session not found.",
+              origin || undefined,
+              { sessionId: mcpSessionId }
+            );
+          }
           return jsonRpcErrorResponse(
             403,
             "Session validation failed. Session does not belong to authenticated user.",
@@ -253,9 +299,23 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
         }
         console.log(`[${timestamp}] Session ${mcpSessionId} validated for user ${userId}`);
       } else {
-        // Create new session for requests without session ID
+        const isInitialize = isInitializeRequest(parsedBody);
+        if (!isInitialize) {
+          return jsonRpcErrorResponse(
+            400,
+            "Requests require existing session. Include Mcp-Session-Id header.",
+            origin || undefined
+          );
+        }
+
+        // Create new session for initialization without session ID
         try {
-          sessionId = await SessionManager.createSession(userId, organizationId);
+          sessionId = await SessionManager.createSession(
+            userId,
+            organizationId,
+            authContext.getConnectionId(),
+            authContext.getConnectionName()
+          );
           console.log(`[${timestamp}] Created new session ${sessionId} for user ${userId}`);
         } catch (error) {
           console.error(`[${timestamp}] Failed to create session:`, error);
@@ -275,19 +335,8 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
     const server = await createMcpServer(authContext);
 
     let shouldReturnAccepted = false;
-    if (method === "POST") {
-      try {
-        const body = await request.clone().json();
-        if (!Array.isArray(body)) {
-          shouldReturnAccepted = isJsonRpcNotification(body) || isJsonRpcResponse(body);
-        }
-      } catch (error) {
-        return jsonRpcErrorResponse(
-          400,
-          "Invalid JSON body",
-          origin || undefined
-        );
-      }
+    if (isPost && parsedBody && !Array.isArray(parsedBody)) {
+      shouldReturnAccepted = isJsonRpcNotification(parsedBody) || isJsonRpcResponse(parsedBody);
     }
 
     // Connect server to transport

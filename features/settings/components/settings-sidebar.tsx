@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Building2, Folder, Shield, ChevronRight, UserCog, Users, Mail, Settings, User, CreditCard, Plug, ServerCog } from 'lucide-react'
+import { Activity, Building2, Folder, Shield, ChevronRight, UserCog, Users, Mail, Settings, User, CreditCard, Plug, ServerCog } from 'lucide-react'
 import { useParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { NavSwitcher } from '@/components/layout/nav-switcher'
@@ -33,7 +33,7 @@ export type AccessSubsection = 'permissions' | 'roles' | 'invitations'
 export type GeneralSubsection = 'profile'
 export type SubscriptionSubsection = 'billing'
 export type AccountSubsection = 'profile' | 'security'
-export type MCPSubsection = 'connections'
+export type MCPSubsection = 'connections' | 'sessions'
 
 interface SettingsSidebarProps extends React.ComponentProps<typeof Sidebar> {
   organizations: Organization[]
@@ -84,6 +84,11 @@ const mcpSubsections: { value: MCPSubsection; label: string; icon: React.Compone
     value: 'connections',
     label: 'Connections',
     icon: Plug,
+  },
+  {
+    value: 'sessions',
+    label: 'Sessions',
+    icon: Activity,
   },
 ]
 
@@ -151,6 +156,9 @@ export function SettingsSidebar({
     }
     if (pathname.includes('/settings/mcp/connections')) {
       return { section: 'mcp' as const, subsection: 'connections' as const }
+    }
+    if (pathname.includes('/settings/mcp/sessions')) {
+      return { section: 'mcp' as const, subsection: 'sessions' as const }
     }
     if (pathname.includes('/settings/mcp')) {
       return { section: 'mcp' as const, subsection: null }

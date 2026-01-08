@@ -7,6 +7,8 @@ export interface SessionData {
   userId: string;
   organizationId: string;
   createdAt: number;
+  connectionId?: string;
+  connectionName?: string;
 }
 
 /**
@@ -71,7 +73,9 @@ export class SessionManager {
    */
   static async createSession(
     userId: string,
-    organizationId: string
+    organizationId: string,
+    connectionId?: string,
+    connectionName?: string
   ): Promise<string> {
     // Generate cryptographically secure UUID
     const sessionId = randomUUID();
@@ -90,6 +94,8 @@ export class SessionManager {
         userId,
         organizationId,
         createdAt: Date.now(),
+        connectionId,
+        connectionName,
       };
 
       const key = this.getSessionKey(userId, sessionId);
@@ -113,27 +119,28 @@ export class SessionManager {
    *
    * @param sessionId - Session ID from Mcp-Session-Id header
    * @param userId - Authenticated user ID from connection token
-   * @returns true if session exists and belongs to user, false otherwise
+   * @returns validation result indicating session status
    *
    * @example
    * const sessionId = request.headers.get('Mcp-Session-Id');
-   * if (!await SessionManager.validateSession(sessionId, authContext.getUserId())) {
+   * const validation = await SessionManager.validateSession(sessionId, authContext.getUserId());
+   * if (!validation.valid) {
    *   return jsonRpcErrorResponse(403, 'Session mismatch');
    * }
    */
   static async validateSession(
     sessionId: string | null,
     userId: string
-  ): Promise<boolean> {
+  ): Promise<SessionValidationResult> {
     if (!sessionId) {
-      return false;
+      return { valid: false, reason: 'not_found' };
     }
 
     const kv = await getKV();
     if (!kv) {
       // When KV is not configured, accept all sessions for backward compatibility
       // This allows local development without Redis
-      return true;
+      return { valid: true };
     }
 
     try {
@@ -142,7 +149,7 @@ export class SessionManager {
 
       if (!data) {
         console.warn(`[SessionManager] Session ${sessionId} not found for user ${userId}`);
-        return false;
+        return { valid: false, reason: 'not_found' };
       }
 
       // Handle both JSON string and already-parsed object from KV
@@ -158,14 +165,14 @@ export class SessionManager {
         console.warn(
           `[SessionManager] Session ${sessionId} user mismatch: expected ${userId}, got ${sessionData.userId}`
         );
-        return false;
+        return { valid: false, reason: 'user_mismatch' };
       }
 
-      return true;
+      return { valid: true };
     } catch (error) {
       console.error('[SessionManager] Session validation error:', error);
       // Return false on error for graceful degradation
-      return false;
+      return { valid: false, reason: 'error' };
     }
   }
 
@@ -273,7 +280,114 @@ export class SessionManager {
       return null;
     }
   }
+
+  /**
+   * Lists all sessions scoped to an organization
+   */
+  static async listSessionsByOrganization(organizationId: string): Promise<SessionRecord[]> {
+    const kv = await getKV();
+    if (!kv) {
+      return [];
+    }
+
+    try {
+      const keys: string[] = [];
+
+      if (typeof kv.scanIterator === 'function') {
+        for await (const key of kv.scanIterator({ match: 'mcp_session:*', count: 1000 })) {
+          keys.push(String(key));
+        }
+      } else if (typeof kv.scan === 'function') {
+        let cursor = '0';
+        do {
+          // eslint-disable-next-line no-await-in-loop -- bounded scan loop
+          const [nextCursor, batch] = await kv.scan(cursor, { match: 'mcp_session:*', count: 1000 });
+          cursor = nextCursor;
+          keys.push(...batch);
+        } while (cursor !== '0');
+      }
+
+      if (keys.length === 0) {
+        return [];
+      }
+
+      const sessions: SessionRecord[] = [];
+      const chunkSize = 50;
+
+      for (let i = 0; i < keys.length; i += chunkSize) {
+        const chunk = keys.slice(i, i + chunkSize);
+        // eslint-disable-next-line no-await-in-loop -- bounded batch fetch
+        const values = typeof kv.mget === 'function'
+          ? await kv.mget(...chunk)
+          : await Promise.all(chunk.map((key) => kv.get(key)));
+
+        values.forEach((value, index) => {
+          if (!value) {
+            return;
+          }
+
+          const parsedKey = this.parseSessionKey(chunk[index]);
+          if (!parsedKey) {
+            return;
+          }
+
+          let sessionData: SessionData;
+          try {
+            if (typeof value === 'string') {
+              sessionData = JSON.parse(value) as SessionData;
+            } else {
+              sessionData = value as SessionData;
+            }
+          } catch (parseError) {
+            console.warn('[SessionManager] Failed to parse session data:', parseError);
+            return;
+          }
+
+          if (sessionData.organizationId !== organizationId) {
+            return;
+          }
+
+          sessions.push({
+            sessionId: parsedKey.sessionId,
+            userId: sessionData.userId,
+            organizationId: sessionData.organizationId,
+            createdAt: sessionData.createdAt,
+            connectionId: sessionData.connectionId,
+            connectionName: sessionData.connectionName,
+          });
+        });
+      }
+
+      return sessions.sort((a, b) => b.createdAt - a.createdAt);
+    } catch (error) {
+      console.error('[SessionManager] Failed to list sessions:', error);
+      return [];
+    }
+  }
+
+  private static parseSessionKey(key: string): { userId: string; sessionId: string } | null {
+    const [prefix, userId, sessionId] = key.split(':');
+    if (prefix !== 'mcp_session' || !userId || !sessionId) {
+      return null;
+    }
+
+    return { userId, sessionId };
+  }
 }
+
+export interface SessionRecord {
+  sessionId: string;
+  userId: string;
+  organizationId: string;
+  createdAt: number;
+  connectionId?: string;
+  connectionName?: string;
+}
+
+export type SessionValidationResult = {
+  valid: boolean;
+  reason?: 'not_found' | 'user_mismatch' | 'error';
+};
 
 /**
  * Validates Redis/KV configuration at module load time
