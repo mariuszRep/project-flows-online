@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSiteUrl } from '@/lib/utils'
 import type { AuthResult, OAuthProvider } from '@/types/auth'
 import {
   signInSchema,
@@ -61,7 +62,7 @@ export async function signUpWithPassword(
     email: validation.data.email,
     password: validation.data.password,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding?verified=true`,
+      emailRedirectTo: `${getSiteUrl()}/onboarding?verified=true`,
     },
   })
 
@@ -101,7 +102,7 @@ export async function sendMagicLinkToEmail(email: string): Promise<AuthResult> {
   const { error } = await supabase.auth.signInWithOtp({
     email: validation.data.email,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`,
+      emailRedirectTo: `${getSiteUrl()}/api/auth/callback`,
     },
   })
 
@@ -123,7 +124,7 @@ export async function signInWithOAuthProvider(
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`,
+      redirectTo: `${getSiteUrl()}/api/auth/callback`,
     },
   })
 
@@ -151,7 +152,7 @@ export async function requestPasswordResetEmail(
   const { error } = await supabase.auth.resetPasswordForEmail(
     validation.data.email,
     {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback?next=/reset-password`,
+      redirectTo: `${getSiteUrl()}/api/auth/callback?next=/reset-password`,
     }
   )
 

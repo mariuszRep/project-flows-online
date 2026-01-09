@@ -11,6 +11,9 @@ import {
   type AcceptInvitationParams,
 } from '@/features/invitations/validations'
 
+
+import { getSiteUrl } from '@/lib/utils'
+
 export type {
   SendInvitationParams,
   WorkspacePermission,
@@ -73,7 +76,7 @@ export class InvitationService {
       const { error: otpError } = await this.supabase.auth.signInWithOtp({
         email: email,
         options: {
-          emailRedirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback?next=/organizations`,
+          emailRedirectTo: redirectUrl ?? `${getSiteUrl()}/api/auth/callback?next=/organizations`,
         },
       })
 
@@ -111,7 +114,7 @@ export class InvitationService {
               const { error: otpError } = await this.supabase.auth.signInWithOtp({
                 email: email,
                 options: {
-                  emailRedirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/auth/callback?next=/organizations`,
+                  emailRedirectTo: redirectUrl ?? `${getSiteUrl()}/api/auth/callback?next=/organizations`,
                 },
               })
 
@@ -135,7 +138,7 @@ export class InvitationService {
             email: email,
             options: {
               // Ensure we use the full site URL for the redirect
-              emailRedirectTo: redirectUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback?next=/organizations`,
+              emailRedirectTo: redirectUrl ?? `${getSiteUrl()}/api/auth/callback?next=/organizations`,
             },
           })
 

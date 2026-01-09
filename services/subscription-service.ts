@@ -3,6 +3,8 @@ import Stripe from 'stripe'
 import { CheckoutSessionResult } from './payment-service'
 import { createServiceRoleClient, createClient } from '@/lib/supabase/server'
 
+import { getSiteUrl } from '@/lib/utils'
+
 /**
  * Subscription Service - Business logic layer for Stripe subscriptions
  * Handles subscription checkout session creation with organization linking
@@ -45,7 +47,7 @@ export async function createSubscriptionCheckoutSession(
 ): Promise<CheckoutSessionResult> {
   try {
     const stripe = getStripeInstance()
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const baseUrl = getSiteUrl()
 
     // Find or create Stripe Customer with appropriate metadata
     let customerId: string

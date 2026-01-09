@@ -7,6 +7,7 @@ import {
   createSubscriptionCheckoutSession,
   createCustomerPortalSession as createPortalSession
 } from '@/services/subscription-service'
+import { getSiteUrl } from '@/lib/utils'
 
 /**
  * Subscription Actions - Next.js Server Actions
@@ -90,7 +91,7 @@ export async function createCustomerPortalSession() {
   const organization = organizations[0]
 
   // Set return URL to organization page
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const baseUrl = getSiteUrl()
   const returnUrl = `${baseUrl}/organizations/${organization.id}`
 
   const result = await createPortalSession({

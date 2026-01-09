@@ -1,5 +1,7 @@
 import Stripe from 'stripe'
 
+import { getSiteUrl } from '@/lib/utils'
+
 /**
  * Payment Service - Business logic layer for Stripe payments
  * Initializes Stripe SDK and handles checkout session creation
@@ -31,7 +33,7 @@ export interface CheckoutSessionResult {
 export async function createCheckoutSession(): Promise<CheckoutSessionResult> {
   try {
     const stripe = getStripeInstance()
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const baseUrl = getSiteUrl()
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
