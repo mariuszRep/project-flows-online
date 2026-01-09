@@ -539,15 +539,16 @@ export class SessionManager {
         return null;
       }
 
-      const values = typeof kv.mget === 'function'
+      const values = (typeof kv.mget === 'function'
         ? await kv.mget(...keys)
-        : await Promise.all(keys.map((key) => kv.get(key)));
+        : await Promise.all(keys.map((key) => kv.get(key)))) as any[];
 
       let newest: { sessionId: string; createdAt: number } | null = null;
 
-      values.forEach((value, index) => {
+      for (let index = 0; index < values.length; index++) {
+        const value = values[index];
         if (!value) {
-          return;
+          continue;
         }
 
         let sessionData: SessionData;
@@ -559,22 +560,22 @@ export class SessionManager {
           }
         } catch (parseError) {
           console.warn('[SessionManager] Failed to parse session data:', parseError);
-          return;
+          continue;
         }
 
         if (sessionData.connectionId !== connectionId) {
-          return;
+          continue;
         }
 
         const parsedKey = this.parseSessionKey(keys[index]);
         if (!parsedKey) {
-          return;
+          continue;
         }
 
         if (!newest || sessionData.createdAt > newest.createdAt) {
           newest = { sessionId: parsedKey.sessionId, createdAt: sessionData.createdAt };
         }
-      });
+      }
 
       return newest ? newest.sessionId : null;
     } catch (error) {
@@ -892,18 +893,19 @@ export class SessionManager {
       for (let i = 0; i < keys.length; i += chunkSize) {
         const chunk = keys.slice(i, i + chunkSize);
         // eslint-disable-next-line no-await-in-loop -- bounded batch fetch
-        const values = typeof kv.mget === 'function'
+        const values = (typeof kv.mget === 'function'
           ? await kv.mget(...chunk)
-          : await Promise.all(chunk.map((key) => kv.get(key)));
+          : await Promise.all(chunk.map((key) => kv.get(key)))) as any[];
 
-        values.forEach((value, index) => {
+        for (let index = 0; index < values.length; index++) {
+          const value = values[index];
           if (!value) {
-            return;
+            continue;
           }
 
           const parsedKey = this.parseSessionKey(chunk[index]);
           if (!parsedKey) {
-            return;
+            continue;
           }
 
           let sessionData: SessionData;
@@ -915,11 +917,11 @@ export class SessionManager {
             }
           } catch (parseError) {
             console.warn('[SessionManager] Failed to parse session data:', parseError);
-            return;
+            continue;
           }
 
           if (sessionData.organizationId !== organizationId) {
-            return;
+            continue;
           }
 
           sessions.push({
@@ -930,7 +932,7 @@ export class SessionManager {
             connectionId: sessionData.connectionId,
             connectionName: sessionData.connectionName,
           });
-        });
+        }
       }
 
       return sessions.sort((a, b) => b.createdAt - a.createdAt);

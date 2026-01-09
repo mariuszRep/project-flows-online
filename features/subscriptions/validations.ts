@@ -66,7 +66,7 @@ export const updateBillingIntervalSchema = z.object({
     .min(1, 'Subscription ID is required')
     .startsWith('sub_', 'Invalid Stripe subscription ID format'),
   interval: z.enum(['month', 'year'], {
-    errorMap: () => ({ message: 'Billing interval must be either "month" or "year"' }),
+    message: 'Billing interval must be either "month" or "year"',
   }),
 })
 

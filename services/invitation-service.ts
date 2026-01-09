@@ -22,7 +22,7 @@ export interface InvitedUserDetails {
   email: string
   userId: string
   invitationId: string
-  status: 'pending' | 'accepted' | 'expired'
+  status: 'pending' | 'accepted' | 'declined' | 'expired'
   expiresAt: string
   orgId: string
   orgName: string | null
@@ -331,7 +331,7 @@ export class InvitationService {
       email: user.email || '',
       userId: invitation.user_id,
       invitationId: invitation.id,
-      status: invitation.status as 'pending' | 'accepted' | 'expired',
+      status: invitation.status as 'pending' | 'accepted' | 'declined' | 'expired',
       expiresAt: invitation.expires_at,
       orgId: orgPermissions?.object_id || '',
       orgName,

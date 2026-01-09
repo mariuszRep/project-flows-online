@@ -141,8 +141,8 @@ async function handleWebhookEvent(event: Stripe.Event) {
 
     case 'customer.subscription.updated': {
       const subscription = event.data.object as Stripe.Subscription
-      const currentPeriodEnd = subscription.current_period_end as number
-      const currentPeriodStart = subscription.current_period_start as number
+      const currentPeriodEnd = subscription.items.data[0].current_period_end
+      const currentPeriodStart = subscription.items.data[0].current_period_start
 
       console.log('🔄 Subscription updated:', {
         subscriptionId: subscription.id,
@@ -216,7 +216,7 @@ async function handleWebhookEvent(event: Stripe.Event) {
       console.log('✅ Invoice paid:', {
         invoiceId: invoice.id,
         customer: invoice.customer,
-        subscription: invoice.subscription,
+        subscription: (invoice as any).subscription,
         amount: invoice.amount_paid,
         currency: invoice.currency,
       })
@@ -228,7 +228,7 @@ async function handleWebhookEvent(event: Stripe.Event) {
       console.log('⚠️ Invoice payment failed:', {
         invoiceId: invoice.id,
         customer: invoice.customer,
-        subscription: invoice.subscription,
+        subscription: (invoice as any).subscription,
         amount: invoice.amount_due,
         currency: invoice.currency,
       })

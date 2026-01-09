@@ -319,14 +319,46 @@ enabled = false
 # Obtain from https://clerk.com/setup/supabase
 # domain = "example.clerk.accounts.dev"
 
-# OAuth server configuration
+# OAuth 2.1 Authorization Server Configuration
+# Documentation: https://supabase.com/docs/guides/auth/oauth-server
+#
+# ⚠️ IMPORTANT: OAuth 2.1 Server is a PRODUCTION-ONLY feature ⚠️
+# This configuration will NOT work in local Supabase CLI environments.
+# Local Supabase does not support OAuth 2.1 server endpoints or DCR.
+#
+# For local development, use service role key authentication instead.
+# Deploy to production Supabase to enable OAuth 2.1 functionality.
+#
+# Production Setup Required:
+# 1. Deploy to production/staging Supabase instance
+# 2. Navigate to: Authentication → OAuth Server in production dashboard
+# 3. Enable "OAuth 2.1 Server" feature
+# 4. Enable "Dynamic Client Registration (DCR)"
+# 5. Configure custom scopes:
+#    - mcp:execute (required): General MCP tool execution
+#    - mcp:read (optional): Read-only MCP operations
+#    - mcp:write (optional): Write MCP operations
+#
+# Production OAuth 2.1 Endpoints (auto-configured):
+# - Metadata: {SUPABASE_URL}/.well-known/oauth-authorization-server
+# - JWKS: {SUPABASE_URL}/.well-known/jwks.json
+# - Authorization: {SUPABASE_URL}/oauth/authorize
+# - Token: {SUPABASE_URL}/oauth/token
+# - Registration: {SUPABASE_URL}/oauth/register (DCR endpoint)
+#
+# MCP Clients (VS Code, Cursor, JetBrains) will:
+# 1. Discover endpoints via metadata URL (production only)
+# 2. Register themselves dynamically via DCR (production only)
+# 3. Use Authorization Code + PKCE flow (production only)
+# 4. Receive JWT tokens with mcp:execute scope (production only)
 [auth.oauth_server]
-# Enable OAuth server functionality
-enabled = false
-# Path for OAuth consent flow UI
+# Enable OAuth server functionality (production only)
+enabled = true
+# Path for OAuth consent flow UI (production only)
 authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+# Allow dynamic client registration (DCR) for MCP clients (production only)
+# Enables VS Code, Cursor, JetBrains IDEs to register automatically
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true

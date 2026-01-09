@@ -321,11 +321,11 @@ export type Database = {
             foreignKeyName: "roles_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-          referencedRelation: "users"
-          referencedColumns: ["id"]
-        },
-      ]
-    }
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_edges: {
         Row: {
           created_at: string
@@ -702,7 +702,7 @@ export type Database = {
       }
     }
     Enums: {
-      invitation_status: "pending" | "accepted" | "expired"
+      invitation_status: "pending" | "accepted" | "declined" | "expired"
       subscription_status: "active" | "canceled" | "incomplete" | "incomplete_expired" | "past_due" | "trialing" | "unpaid" | "paused"
     }
     CompositeTypes: {
