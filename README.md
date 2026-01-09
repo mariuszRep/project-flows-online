@@ -125,43 +125,67 @@ The `/portal` route is protected and requires authentication. Unauthenticated us
 
 ## 🔌 OAuth 2.1 MCP Server Configuration
 
-This project includes an OAuth 2.1 authorization server for Model Context Protocol (MCP) clients. MCP enables AI assistants in IDEs (VS Code, Cursor, JetBrains) to securely interact with your application.
+## Overview
 
-### Overview
+This project supports OAuth 2.1 authentication with Dynamic Client Registration (DCR) for MCP clients (VS Code, Cursor, JetBrains IDEs). However, **OAuth 2.1 server functionality is only available in production Supabase environments**, not in local Supabase CLI.
 
-The application uses Supabase Auth as an OAuth 2.1 authorization server with Dynamic Client Registration (DCR), allowing MCP clients to:
-- Automatically discover OAuth endpoints via metadata
-- Register themselves dynamically without manual configuration
-- Authenticate using OAuth 2.1 with PKCE (Proof Key for Code Exchange)
-- Execute MCP tools with JWT-based authorization
+## Environment Configuration
 
-### Environment Configuration
+### Local Development Limitations
 
-Add these variables to your `.env.local` file:
+**Important:** The OAuth 2.1 Authorization Server feature with Dynamic Client Registration is a **production-only Supabase feature**. Local Supabase (via CLI) does not support:
+
+- OAuth 2.1 server endpoints
+- Dynamic Client Registration (DCR)
+- `.well-known/oauth-authorization-server` metadata
+- OAuth authorization flows
+
+### Local Development Alternatives
+
+For local development, use one of these approaches:
+
+#### Option 1: Service Role Key (Recommended for Local)
+```bash
+# Use Supabase service role key for local MCP testing
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+# No OAuth configuration needed locally
+```
+
+#### Option 2: Production OAuth Testing
+- Deploy to staging/production Supabase
+- Configure OAuth 2.1 server in production dashboard
+- Test OAuth flows against production endpoints
+- Use service role key for local development
+
+### Production Configuration
+
+When deploying to production, configure these environment variables:
 
 ```env
 # OAuth 2.1 Authorization Server
-MCP_SERVER_URL=http://localhost:3000
-JWT_ISSUER=your-project-url.supabase.co
-JWT_AUDIENCE=http://localhost:3000
+MCP_SERVER_URL=https://yourdomain.com
+JWT_ISSUER=https://your-project-ref.supabase.co
+JWT_AUDIENCE=https://yourdomain.com
 
 # MCP Connection Security
-MCP_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-MCP_EXPECTED_HOST=localhost:3000
+MCP_ALLOWED_ORIGINS=https://yourdomain.com
+MCP_EXPECTED_HOST=yourdomain.com
 
 # Redis/KV for Session Management
-KV_URL=redis://localhost:6379  # or Vercel KV URL
-REDIS_URL=redis://localhost:6379
+KV_URL=rediss://your-kv-instance.upstash.io
+REDIS_URL=rediss://your-kv-instance.upstash.io
 
 # Rate Limiting
 MCP_IP_RATE_LIMIT=20           # Requests per minute (pre-auth)
 MCP_USER_RATE_LIMIT=100        # Requests per minute (post-auth)
 ```
 
-### Supabase Dashboard Setup
+### Production Supabase Dashboard Setup
+
+**Note:** These steps are for production Supabase instances only, not local development.
 
 1. **Navigate to OAuth Server Settings**
-   - Open Supabase Dashboard
+   - Open Production Supabase Dashboard
    - Go to: Authentication → OAuth Server
 
 2. **Enable OAuth 2.1 Server**
@@ -178,9 +202,28 @@ MCP_USER_RATE_LIMIT=100        # Requests per minute (post-auth)
    - `mcp:read` (optional) - Read-only MCP operations
    - `mcp:write` (optional) - Write MCP operations
 
-### OAuth 2.1 Endpoints
+### Local Development Setup
 
-Once enabled, these endpoints are automatically available:
+For local development, use the simplified approach:
+
+```bash
+# Copy .env.example to .env.local
+cp .env.example .env.local
+
+# Configure only essential variables for local development
+NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-local-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-local-service-role-key
+
+# Use service role key for MCP authentication (local only)
+# OAuth 2.1 endpoints will not be available locally
+```
+
+### Production OAuth 2.1 Endpoints
+
+**Available in production Supabase only:**
+
+Once enabled in production, these endpoints are automatically available:
 
 | Endpoint | URL | Purpose |
 |----------|-----|---------|
@@ -190,7 +233,19 @@ Once enabled, these endpoints are automatically available:
 | **Token** | `{SUPABASE_URL}/oauth/token` | Token exchange endpoint |
 | **Registration** | `{SUPABASE_URL}/oauth/register` | Dynamic client registration (DCR) |
 
-### Verification Steps
+### Local Development Endpoints
+
+For local development, use standard Supabase endpoints:
+
+| Endpoint | URL | Purpose |
+|----------|-----|---------|
+| **Auth** | `http://localhost:54321/auth/v1` | Standard Supabase authentication |
+| **API** | `http://localhost:54321/rest/v1` | Database API access |
+| **Studio** | `http://localhost:54323` | Local Supabase dashboard |
+
+### Production Verification Steps
+
+**These steps work only in production Supabase:**
 
 1. **Test Metadata Endpoint**
    ```bash
@@ -202,56 +257,85 @@ Once enabled, these endpoints are automatically available:
    ```bash
    curl https://your-project.supabase.co/.well-known/jwks.json
    ```
-   Should return public keys array
+   Expected response: JSON Web Key Set with public keys
 
-3. **Verify DCR is Enabled**
-   Check that the metadata response includes `registration_endpoint`
+3. **Test Dynamic Registration**
+   ```bash
+   curl -X POST https://your-project.supabase.co/oauth/register \
+     -H "Content-Type: application/json" \
+     -d '{
+       "client_name": "MCP Test Client",
+       "redirect_uris": ["http://localhost:3000/callback"],
+       "grant_types": ["authorization_code"],
+       "response_types": ["code"],
+       "scope": "mcp:execute"
+     }'
+   ```
+
+### Local Development Testing
+
+For local development, test standard Supabase authentication:
+
+1. **Test Local Supabase Health**
+   ```bash
+   curl http://localhost:54321/rest/v1/
+   ```
+
+2. **Test Service Role Authentication**
+   ```bash
+   curl http://localhost:54321/rest/v1/ \
+     -H "apikey: your-service-role-key" \
+     -H "Authorization: Bearer your-service-role-key"
+   ```
+
+3. **Start Local Development**
+   ```bash
+   # Start Supabase locally
+   supabase start
+   
+   # Start Next.js development server
+   npm run dev
+   
+   # Test MCP endpoints with service role key
+   # OAuth 2.1 flows will not work locally
+   ```
 
 ### MCP Client Configuration
 
+**For Production OAuth 2.1:**
 MCP clients (VS Code Claude Code, Cursor, etc.) will automatically:
 1. Fetch OAuth metadata from `/.well-known/oauth-authorization-server`
 2. Register as a client via the DCR endpoint
 3. Initiate OAuth 2.1 Authorization Code + PKCE flow
 4. Request `mcp:execute` scope
 5. Receive and cache JWT tokens
-6. Include tokens in MCP requests as `Bearer` authorization
 
-### Local Development
+**For Local Development:**
+MCP clients should use service role key authentication:
+1. Configure service role key in MCP client settings
+2. Use standard Supabase endpoints (`http://localhost:54321`)
+3. OAuth flows are not available locally
 
-For local development with Supabase CLI:
+## Security Features
 
-1. **Enable OAuth in Local Config**
-   The `supabase/config.toml` file is already configured with:
-   ```toml
-   [auth.oauth_server]
-   enabled = true
-   allow_dynamic_registration = true
-   ```
+### Production OAuth 2.1 Security
+- **JWT Validation**: Tokens validated with issuer, audience, and signature verification
+- **Dynamic Client Registration**: Clients register securely with metadata validation
+- **Scope-Based Access**: Granular permissions with `mcp:execute`, `mcp:read`, `mcp:write`
+- **PKCE Flow**: Prevents authorization code interception attacks
+- **Token Expiration**: Automatic token refresh and expiration handling
 
-2. **Start Supabase Locally**
-   ```bash
-   supabase start
-   ```
+### Local Development Security
+- **Service Role Key**: Use service role key for full access during development
+- **Local Network**: Development endpoints accessible only from localhost
+- **Environment Isolation**: Separate configurations for local and production
 
-3. **Local OAuth Endpoints**
-   - Metadata: `http://localhost:54321/.well-known/oauth-authorization-server`
-   - JWKS: `http://localhost:54321/.well-known/jwks.json`
+## Documentation
 
-### Security Features
-
-- **JWT Validation**: All MCP requests validate JWT signature, issuer, audience, and expiry
-- **Rate Limiting**: Two-tier rate limiting (IP-based and user-based)
-- **DNS Rebinding Protection**: Host header and origin validation
-- **Session Management**: Redis-backed sessions with automatic cleanup
-- **Scope-based Authorization**: Granular permissions via OAuth scopes
-
-### Documentation Links
-
-- [Supabase OAuth 2.1 Server](https://supabase.com/docs/guides/auth/oauth-server)
-- [MCP Authentication Guide](https://supabase.com/docs/guides/auth/oauth-server/mcp-authentication)
-- [OAuth 2.1 Specification](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-10)
+- [Supabase OAuth Server Documentation](https://supabase.com/docs/guides/auth/oauth-server)
+- [OAuth 2.1 Specification](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04)
 - [Dynamic Client Registration](https://datatracker.ietf.org/doc/html/rfc7591)
+- [MCP Authentication Guide](https://modelcontextprotocol.io/docs/concepts/authentication)
 
 ## 🛠 Project Structure
 
