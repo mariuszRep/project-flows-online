@@ -123,6 +123,136 @@ The `/portal` route is protected and requires authentication. Unauthenticated us
 - [Supabase SSR Guide](https://supabase.com/docs/guides/auth/server-side-rendering)
 - [Next.js Integration](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs)
 
+## 🔌 OAuth 2.1 MCP Server Configuration
+
+This project includes an OAuth 2.1 authorization server for Model Context Protocol (MCP) clients. MCP enables AI assistants in IDEs (VS Code, Cursor, JetBrains) to securely interact with your application.
+
+### Overview
+
+The application uses Supabase Auth as an OAuth 2.1 authorization server with Dynamic Client Registration (DCR), allowing MCP clients to:
+- Automatically discover OAuth endpoints via metadata
+- Register themselves dynamically without manual configuration
+- Authenticate using OAuth 2.1 with PKCE (Proof Key for Code Exchange)
+- Execute MCP tools with JWT-based authorization
+
+### Environment Configuration
+
+Add these variables to your `.env.local` file:
+
+```env
+# OAuth 2.1 Authorization Server
+MCP_SERVER_URL=http://localhost:3000
+JWT_ISSUER=your-project-url.supabase.co
+JWT_AUDIENCE=http://localhost:3000
+
+# MCP Connection Security
+MCP_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+MCP_EXPECTED_HOST=localhost:3000
+
+# Redis/KV for Session Management
+KV_URL=redis://localhost:6379  # or Vercel KV URL
+REDIS_URL=redis://localhost:6379
+
+# Rate Limiting
+MCP_IP_RATE_LIMIT=20           # Requests per minute (pre-auth)
+MCP_USER_RATE_LIMIT=100        # Requests per minute (post-auth)
+```
+
+### Supabase Dashboard Setup
+
+1. **Navigate to OAuth Server Settings**
+   - Open Supabase Dashboard
+   - Go to: Authentication → OAuth Server
+
+2. **Enable OAuth 2.1 Server**
+   - Toggle "Enable OAuth 2.1 Server"
+   - This activates the authorization server functionality
+
+3. **Enable Dynamic Client Registration (DCR)**
+   - Toggle "Allow Dynamic Client Registration"
+   - Allows IDE clients to self-register without manual setup
+
+4. **Configure Custom Scopes**
+   Create the following OAuth scopes:
+   - `mcp:execute` (required) - General MCP tool execution
+   - `mcp:read` (optional) - Read-only MCP operations
+   - `mcp:write` (optional) - Write MCP operations
+
+### OAuth 2.1 Endpoints
+
+Once enabled, these endpoints are automatically available:
+
+| Endpoint | URL | Purpose |
+|----------|-----|---------|
+| **Metadata** | `{SUPABASE_URL}/.well-known/oauth-authorization-server` | Discovery document with all OAuth configuration |
+| **JWKS** | `{SUPABASE_URL}/.well-known/jwks.json` | Public keys for JWT signature verification |
+| **Authorization** | `{SUPABASE_URL}/oauth/authorize` | OAuth authorization endpoint |
+| **Token** | `{SUPABASE_URL}/oauth/token` | Token exchange endpoint |
+| **Registration** | `{SUPABASE_URL}/oauth/register` | Dynamic client registration (DCR) |
+
+### Verification Steps
+
+1. **Test Metadata Endpoint**
+   ```bash
+   curl https://your-project.supabase.co/.well-known/oauth-authorization-server
+   ```
+   Expected response includes: `issuer`, `authorization_endpoint`, `token_endpoint`, `jwks_uri`, `registration_endpoint`
+
+2. **Test JWKS Endpoint**
+   ```bash
+   curl https://your-project.supabase.co/.well-known/jwks.json
+   ```
+   Should return public keys array
+
+3. **Verify DCR is Enabled**
+   Check that the metadata response includes `registration_endpoint`
+
+### MCP Client Configuration
+
+MCP clients (VS Code Claude Code, Cursor, etc.) will automatically:
+1. Fetch OAuth metadata from `/.well-known/oauth-authorization-server`
+2. Register as a client via the DCR endpoint
+3. Initiate OAuth 2.1 Authorization Code + PKCE flow
+4. Request `mcp:execute` scope
+5. Receive and cache JWT tokens
+6. Include tokens in MCP requests as `Bearer` authorization
+
+### Local Development
+
+For local development with Supabase CLI:
+
+1. **Enable OAuth in Local Config**
+   The `supabase/config.toml` file is already configured with:
+   ```toml
+   [auth.oauth_server]
+   enabled = true
+   allow_dynamic_registration = true
+   ```
+
+2. **Start Supabase Locally**
+   ```bash
+   supabase start
+   ```
+
+3. **Local OAuth Endpoints**
+   - Metadata: `http://localhost:54321/.well-known/oauth-authorization-server`
+   - JWKS: `http://localhost:54321/.well-known/jwks.json`
+
+### Security Features
+
+- **JWT Validation**: All MCP requests validate JWT signature, issuer, audience, and expiry
+- **Rate Limiting**: Two-tier rate limiting (IP-based and user-based)
+- **DNS Rebinding Protection**: Host header and origin validation
+- **Session Management**: Redis-backed sessions with automatic cleanup
+- **Scope-based Authorization**: Granular permissions via OAuth scopes
+
+### Documentation Links
+
+- [Supabase OAuth 2.1 Server](https://supabase.com/docs/guides/auth/oauth-server)
+- [MCP Authentication Guide](https://supabase.com/docs/guides/auth/oauth-server/mcp-authentication)
+- [OAuth 2.1 Specification](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-10)
+- [Dynamic Client Registration](https://datatracker.ietf.org/doc/html/rfc7591)
+
 ## 🛠 Project Structure
 
 ```

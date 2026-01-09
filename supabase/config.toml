@@ -319,14 +319,40 @@ enabled = false
 # Obtain from https://clerk.com/setup/supabase
 # domain = "example.clerk.accounts.dev"
 
-# OAuth server configuration
+# OAuth 2.1 Authorization Server Configuration
+# Documentation: https://supabase.com/docs/guides/auth/oauth-server
+#
+# This configures Supabase Auth as an OAuth 2.1 authorization server for MCP clients.
+#
+# Required Supabase Dashboard Setup:
+# 1. Navigate to: Authentication → OAuth Server
+# 2. Enable "OAuth 2.1 Server" feature
+# 3. Enable "Dynamic Client Registration (DCR)"
+# 4. Configure custom scopes:
+#    - mcp:execute (required): General MCP tool execution
+#    - mcp:read (optional): Read-only MCP operations
+#    - mcp:write (optional): Write MCP operations
+#
+# OAuth 2.1 Endpoints (auto-configured):
+# - Metadata: {SUPABASE_URL}/.well-known/oauth-authorization-server
+# - JWKS: {SUPABASE_URL}/.well-known/jwks.json
+# - Authorization: {SUPABASE_URL}/oauth/authorize
+# - Token: {SUPABASE_URL}/oauth/token
+# - Registration: {SUPABASE_URL}/oauth/register (DCR endpoint)
+#
+# MCP Clients (VS Code, Cursor, JetBrains) will:
+# 1. Discover endpoints via metadata URL
+# 2. Register themselves dynamically via DCR
+# 3. Use Authorization Code + PKCE flow
+# 4. Receive JWT tokens with mcp:execute scope
 [auth.oauth_server]
 # Enable OAuth server functionality
-enabled = false
+enabled = true
 # Path for OAuth consent flow UI
 authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+# Allow dynamic client registration (DCR) for MCP clients
+# Enables VS Code, Cursor, JetBrains IDEs to register automatically
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true
