@@ -5,6 +5,13 @@ import { validateOrigin } from "@/lib/mcp/origin-validator";
 import { AuthContext } from "@/lib/mcp/auth-context";
 import { SessionManager } from "@/lib/mcp/session-manager";
 import type { SessionState } from "@/types/metrics";
+import {
+  getClientIp,
+  checkIpRateLimit,
+  checkUserRateLimit,
+  addRateLimitHeaders,
+  trackRateLimitEvent,
+} from "@/lib/rate-limit/mcp-limiter";
 
 const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([
@@ -128,6 +135,8 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
   const isPost = method === "POST";
   let sessionState: SessionState | null = null;
   let sessionStateDirty = false;
+  let ipRateLimit: any = null;
+  let userRateLimit: any = null;
 
   try {
     // Step 1: Validate Origin header (DNS rebinding protection)
@@ -148,6 +157,43 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
             "Content-Type": "application/json",
             ...getCorsHeaders(origin || undefined),
           },
+        }
+      );
+    }
+
+    // Step 1.5: IP-based rate limiting (before authentication)
+    // Prevents brute force attacks and API abuse
+    const clientIp = getClientIp(request);
+    ipRateLimit = await checkIpRateLimit(clientIp);
+
+    if (!ipRateLimit.success) {
+      trackRateLimitEvent("ip", clientIp, true);
+      console.warn(`[${timestamp}] IP rate limit exceeded: ${clientIp}`);
+
+      const rateLimitHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...getCorsHeaders(origin || undefined),
+      };
+      addRateLimitHeaders(rateLimitHeaders, ipRateLimit);
+
+      return new NextResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: {
+            code: -32005,
+            message: "Rate limit exceeded",
+            data: {
+              type: "ip",
+              limit: ipRateLimit.limit,
+              remaining: ipRateLimit.remaining,
+              reset: ipRateLimit.reset,
+              retryAfter: ipRateLimit.retryAfter,
+            },
+          },
+        }),
+        {
+          status: 429,
+          headers: rateLimitHeaders,
         }
       );
     }
@@ -219,6 +265,17 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
 
       console.warn(`[${timestamp}] Authentication failed: ${errorMessage}`);
 
+      const authFailHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        "WWW-Authenticate": 'Bearer realm="MCP", error="invalid_token", error_description="' + errorMessage + '"',
+        ...getCorsHeaders(origin || undefined),
+      };
+
+      // Add IP rate limit headers even on auth failure
+      if (ipRateLimit) {
+        addRateLimitHeaders(authFailHeaders, ipRateLimit);
+      }
+
       return new NextResponse(
         JSON.stringify({
           jsonrpc: "2.0",
@@ -229,17 +286,49 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
         }),
         {
           status: 401,
-          headers: {
-            "Content-Type": "application/json",
-            "WWW-Authenticate": 'Bearer realm="MCP", error="invalid_token", error_description="' + errorMessage + '"',
-            ...getCorsHeaders(origin || undefined),
+          headers: authFailHeaders,
+        }
+      );
+    }
+
+    // Step 2.5: User-based rate limiting (after authentication)
+    // Limits authenticated users to prevent abuse
+    const userId = authContext.getUserId();
+    userRateLimit = await checkUserRateLimit(userId);
+
+    if (!userRateLimit.success) {
+      trackRateLimitEvent("user", userId, true);
+      console.warn(`[${timestamp}] User rate limit exceeded: ${userId}`);
+
+      const rateLimitHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...getCorsHeaders(origin || undefined),
+      };
+      addRateLimitHeaders(rateLimitHeaders, userRateLimit);
+
+      return new NextResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: {
+            code: -32005,
+            message: "Rate limit exceeded",
+            data: {
+              type: "user",
+              limit: userRateLimit.limit,
+              remaining: userRateLimit.remaining,
+              reset: userRateLimit.reset,
+              retryAfter: userRateLimit.retryAfter,
+            },
           },
+        }),
+        {
+          status: 429,
+          headers: rateLimitHeaders,
         }
       );
     }
 
     // Step 3: Validate or create MCP session
-    const userId = authContext.getUserId();
     const organizationId = authContext.getOrganizationId();
     const mcpSessionId = request.headers.get('mcp-session-id');
     let sessionId = mcpSessionId;
@@ -387,6 +476,15 @@ async function handleMcpRequest(request: NextRequest): Promise<Response> {
       response.headers.set(key, value);
     });
     response.headers.set("mcp-protocol-version", protocolVersion);
+
+    // Add rate limit headers to response for client visibility
+    // Use the more restrictive of IP or user rate limits for header display
+    const effectiveLimit = userRateLimit && userRateLimit.remaining < ipRateLimit.remaining
+      ? userRateLimit
+      : ipRateLimit;
+    response.headers.set("X-RateLimit-Limit", effectiveLimit.limit.toString());
+    response.headers.set("X-RateLimit-Remaining", effectiveLimit.remaining.toString());
+    response.headers.set("X-RateLimit-Reset", effectiveLimit.reset.toString());
 
     if (sessionId) {
       const now = Date.now();
