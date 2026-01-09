@@ -361,18 +361,7 @@ export function SettingsClient({ organizations: initialOrganizations, user }: Se
           organizations={organizations}
           selectedOrgId={selectedOrgId}
           onSelectOrg={handleOrganizationChange}
-          activeSection={activeSection}
-          onSectionChange={handleSectionChange}
-          activeSubsection={activeSubsection}
-          onSubsectionChange={handleSubsectionChange}
-          activeGeneralSubsection={activeGeneralSubsection}
-          onGeneralSubsectionChange={handleGeneralSubsectionChange}
-          activeSubscriptionSubsection={activeSubscriptionSubsection}
-          onSubscriptionSubsectionChange={handleSubscriptionSubsectionChange}
-          activeAccountSubsection={activeAccountSubsection}
-          onAccountSubsectionChange={handleAccountSubsectionChange}
           user={user}
-          navigationDisabled={!selectedOrgId}
         />
       }
       header={

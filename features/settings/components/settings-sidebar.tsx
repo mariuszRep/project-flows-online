@@ -43,6 +43,7 @@ interface SettingsSidebarProps extends React.ComponentProps<typeof Sidebar> {
     email: string
     avatar: string
   }
+  onSelectOrg?: (org: { id: string; name: string }) => void
 }
 
 const accessSubsections: { value: AccessSubsection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -109,6 +110,7 @@ export function SettingsSidebar({
   organizations,
   selectedOrgId,
   user,
+  onSelectOrg,
   ...sidebarProps
 }: SettingsSidebarProps) {
   const pathname = usePathname()
@@ -177,7 +179,9 @@ export function SettingsSidebar({
   }, [activeSection])
 
   const handleSelectOrg = (org: { id: string; name: string }) => {
-    // Navigation handled by Link component in NavSwitcher
+    if (onSelectOrg) {
+      onSelectOrg(org)
+    }
   }
 
   const navigationDisabled = !selectedOrgId
@@ -300,10 +304,10 @@ export function SettingsSidebar({
             >
               <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
-                    <SidebarMenuButton
-                      tooltip="MCP"
-                      disabled={navigationDisabled}
-                    >
+                  <SidebarMenuButton
+                    tooltip="MCP"
+                    disabled={navigationDisabled}
+                  >
                     <ServerCog />
                     <span>MCP</span>
                     <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />

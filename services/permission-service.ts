@@ -19,7 +19,7 @@ import type {
  * Encapsulates logic for querying permissions and the users_permissions materialized view
  */
 export class PermissionsService {
-  constructor(private readonly supabase: SupabaseClient<Database>) {}
+  constructor(private readonly supabase: SupabaseClient<Database>) { }
 
   /**
    * Get users with permissions for a specific organization
@@ -335,7 +335,7 @@ export class PermissionsService {
               if (u.id) {
                 const metadata = u.raw_user_meta_data as any
                 acc[u.id] = {
-                  email: u.email,
+                  email: u.email || '',
                   name: metadata?.name || metadata?.full_name,
                 }
               }
@@ -410,7 +410,7 @@ export class PermissionsService {
               if (u.id) {
                 const metadata = u.raw_user_meta_data as any
                 acc[u.id] = {
-                  email: u.email,
+                  email: u.email || '',
                   name: metadata?.name || metadata?.full_name,
                 }
               }
@@ -490,7 +490,7 @@ export class PermissionsService {
             if (u.id) {
               const metadata = u.raw_user_meta_data as any
               acc[u.id] = {
-                email: u.email,
+                email: u.email || '',
                 name: metadata?.name || metadata?.full_name,
               }
             }

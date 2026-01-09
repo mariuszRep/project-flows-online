@@ -18,7 +18,7 @@ export function SettingsBreadcrumbs() {
     if (!pathname) return []
 
     const segments = pathname.split('/').filter(Boolean)
-    const breadcrumbs = [
+    const breadcrumbs: { label: string; href: string | null }[] = [
       { label: 'Organizations', href: '/organizations' }
     ]
 
